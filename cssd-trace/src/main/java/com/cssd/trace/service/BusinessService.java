@@ -123,6 +123,10 @@ public class BusinessService {
             data.put("labels", sterilizeLabels());
             data.put("records", sterilizationRecords());
             data.put("equipments", jdbc.queryForList("SELECT * FROM cssd_equipment WHERE equipment_type IN (2,3) ORDER BY equipment_type, equipment_code"));
+        } else if ("bio".equals(area)) {
+            data.put("labels", bioLabels());
+            data.put("records", bioRecords());
+            data.put("tests", bioTestRecords());
         } else if ("distribute".equals(area)) {
             data.put("labels", distributeLabels());
             data.put("orders", distributeOrders());
@@ -337,22 +341,67 @@ public class BusinessService {
         Map<String, Object> record = one("SELECT * FROM cssd_sterilization_record WHERE batch_no=?", batchNo);
         List<String> labelNos = jsonStringList(record.get("package_list"));
         List<Map<String, Object>> labels = labelRows(labelNos);
-        String nextStatus = pass ? "STERILIZED" : "PRINTED";
+        boolean needBio = num(record.get("need_bio_test")) == 1;
+        String nextStatus = pass ? (needBio ? "BIO_PENDING" : "STERILIZED") : "PRINTED";
+        int recordResult = pass && !needBio ? 1 : pass ? 0 : 2;
+        int bioStatus = pass && needBio ? 0 : pass ? 1 : 2;
 
         jdbc.update("""
             UPDATE cssd_sterilization_record
-            SET end_time=NOW(), physical_result=?, chemical_result=?, result=?, remark=?
+            SET end_time=NOW(), physical_result=?, chemical_result=?, result=?, bio_test_status=?, remark=?
             WHERE batch_no=?
-            """, physicalPass ? 1 : 2, chemicalPass ? 1 : 2, pass ? 1 : 2,
+            """, physicalPass ? 1 : 2, chemicalPass ? 1 : 2, recordResult, bioStatus,
                 str(body, "remark", pass ? "灭菌合格" : "灭菌不合格，退回待灭菌"), batchNo);
         jdbc.update("UPDATE cssd_equipment SET status=1 WHERE id=?", record.get("equipment_id"));
         updateLabelsStatus(labelNos, nextStatus);
         writeLabelLotEvents(labels, pass ? "灭菌合格" : "灭菌不合格退回", "sterilize", 0,
                 str(body, "operatorId", "user-operator"), str(body, "deviceCode", "TOUCH-STERILIZE"),
-                Map.of("batchNo", batchNo, "labelNos", labelNos, "nextStatus", nextStatus));
+                Map.of("batchNo", batchNo, "labelNos", labelNos, "nextStatus", nextStatus, "needBio", needBio));
         operation("STERILIZATION_RECORD", batchNo, batchNo, "STERILIZE_LABEL_FINISH", str(body, "operatorId", "user-operator"),
                 str(body, "clientType", "TOUCH"), str(body, "deviceCode", "TOUCH-STERILIZE"), null,
                 Map.of("batchNo", batchNo, "labelNos", labelNos, "status", nextStatus), "标签灭菌完成");
+        return Map.of("batchNo", batchNo, "labelNos", labelNos, "status", nextStatus, "pass", pass, "needBio", needBio);
+    }
+
+    // 生物监测录入：需要生物监测的灭菌批次只有监测合格后，标签才允许进入发放工作区。
+    @Transactional
+    public Map<String, Object> bioTestLabels(Map<String, Object> body) {
+        String batchNo = str(body, "batchNo", "").toUpperCase(Locale.ROOT);
+        boolean pass = bool(body, "pass", true);
+        Map<String, Object> record = one("SELECT * FROM cssd_sterilization_record WHERE batch_no=?", batchNo);
+        if (num(record.get("need_bio_test")) != 1) {
+            throw new IllegalArgumentException("该灭菌批次未要求生物监测");
+        }
+        List<String> labelNos = jsonStringList(record.get("package_list"));
+        List<Map<String, Object>> labels = labelRows(labelNos);
+        for (Map<String, Object> label : labels) {
+            String status = str(label.get("status"));
+            if (!List.of("BIO_PENDING", "LOCKED_RECALL").contains(status)) {
+                throw new IllegalArgumentException(str(label.get("label_no")) + " 当前不在生物监测状态");
+            }
+        }
+
+        String nextStatus = pass ? "STERILIZED" : "LOCKED_RECALL";
+        jdbc.update("""
+            INSERT INTO cssd_bio_test_record
+            (id, sterilization_batch_no, equipment_id, test_date, indicator_batch, result, operator_id, input_time)
+            VALUES(?,?,?,?,?,?,?,NOW())
+            """, id(), batchNo, record.get("equipment_id"), java.sql.Date.valueOf(java.time.LocalDate.now()),
+                str(body, "indicatorBatch", "BIO-" + batchNo), pass ? 1 : 2, str(body, "operatorId", "user-operator"));
+        jdbc.update("""
+            UPDATE cssd_sterilization_record
+            SET bio_test_status=?, result=?, remark=?
+            WHERE batch_no=?
+            """, pass ? 1 : 2, pass ? 1 : 2,
+                str(body, "remark", pass ? "生物监测合格，允许发放" : "生物监测阳性，锁定召回"), batchNo);
+        updateLabelsStatus(labelNos, nextStatus);
+        writeLabelLotEvents(labels, pass ? "生物监测合格放行" : "生物监测阳性锁定召回", "bio", 0,
+                str(body, "operatorId", "user-operator"), str(body, "deviceCode", "TOUCH-BIO"),
+                Map.of("batchNo", batchNo, "labelNos", labelNos, "nextStatus", nextStatus));
+        operation("BIO_TEST_RECORD", batchNo, batchNo, pass ? "BIO_TEST_PASS" : "BIO_TEST_FAIL",
+                str(body, "operatorId", "user-operator"), str(body, "clientType", "TOUCH"),
+                str(body, "deviceCode", "TOUCH-BIO"), null,
+                Map.of("batchNo", batchNo, "labelNos", labelNos, "status", nextStatus), "标签生物监测结果录入");
         return Map.of("batchNo", batchNo, "labelNos", labelNos, "status", nextStatus, "pass", pass);
     }
 
@@ -654,11 +703,51 @@ public class BusinessService {
     private List<Map<String, Object>> sterilizationRecords() {
         return jdbc.queryForList("""
             SELECT sr.batch_no, sr.program_name, sr.start_time, sr.end_time, sr.package_list,
-                   sr.physical_result, sr.chemical_result, sr.result, sr.remark,
+                   sr.physical_result, sr.chemical_result, sr.result, sr.need_bio_test, sr.bio_test_status, sr.remark,
                    e.equipment_code, e.equipment_name
             FROM cssd_sterilization_record sr
             JOIN cssd_equipment e ON e.id=sr.equipment_id
             ORDER BY sr.start_time DESC
+            LIMIT 100
+            """);
+    }
+
+    // 查询待生物监测或已锁定召回的标签，生物监测工作区用于录入结果和核对影响范围。
+    private List<Map<String, Object>> bioLabels() {
+        return jdbc.queryForList("""
+            SELECT pl.label_no, pl.package_name, pl.print_time, pl.sterilization_date, pl.expire_date, pl.status,
+                   tl.lot_no, d.dept_name source_dept_name
+            FROM cssd_package_label pl
+            LEFT JOIN cssd_trace_lot tl ON tl.id=pl.source_lot_id
+            LEFT JOIN cssd_department d ON d.id=tl.dept_id
+            WHERE pl.status IN ('BIO_PENDING','LOCKED_RECALL')
+            ORDER BY pl.print_time DESC
+            LIMIT 200
+            """);
+    }
+
+    // 查询需要生物监测的灭菌批次，前端据此展示待录入和历史结果。
+    private List<Map<String, Object>> bioRecords() {
+        return jdbc.queryForList("""
+            SELECT sr.batch_no, sr.program_name, sr.start_time, sr.end_time, sr.package_list,
+                   sr.need_bio_test, sr.bio_test_status, sr.result, sr.remark,
+                   e.equipment_code, e.equipment_name
+            FROM cssd_sterilization_record sr
+            JOIN cssd_equipment e ON e.id=sr.equipment_id
+            WHERE sr.need_bio_test=1
+            ORDER BY sr.start_time DESC
+            LIMIT 100
+            """);
+    }
+
+    // 查询生物监测录入流水，用于后台追溯谁在何时录入了监测结果。
+    private List<Map<String, Object>> bioTestRecords() {
+        return jdbc.queryForList("""
+            SELECT br.sterilization_batch_no, br.test_date, br.indicator_batch, br.result, br.input_time,
+                   u.user_name operator_name
+            FROM cssd_bio_test_record br
+            LEFT JOIN cssd_user u ON u.id=br.operator_id
+            ORDER BY br.input_time DESC
             LIMIT 100
             """);
     }

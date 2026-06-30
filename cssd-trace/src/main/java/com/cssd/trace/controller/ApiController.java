@@ -166,6 +166,12 @@ public class ApiController {
         return ApiResponse.ok(businessService.sterilizeLabelsFinish(body));
     }
 
+    // 标签生物监测结果录入：合格后放行，不合格则锁定召回。
+    @PostMapping("/workflow/label/bio-test")
+    public ApiResponse<Map<String, Object>> bioTestLabels(@RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(businessService.bioTestLabels(body));
+    }
+
     @PostMapping("/workflow/bio-test")
     public ApiResponse<Map<String, Object>> bioTest(@RequestBody Map<String, Object> body) {
         return ApiResponse.ok(traceService.bioTest(body));

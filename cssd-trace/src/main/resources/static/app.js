@@ -17,6 +17,7 @@ const pageTitles = {
     assembleWork: "配包工作区",
     print: "打印模板",
     sterilizeWork: "灭菌工作区",
+    bioWork: "生物监测工作区",
     distributeWork: "发放工作区",
     config: "参数配置",
     trace: "追溯查询",
@@ -88,6 +89,10 @@ async function refresh() {
         state.basic = await api("basic");
         state.workArea = await api("workarea/sterilize");
     }
+    if (state.page === "bioWork") {
+        state.basic = await api("basic");
+        state.workArea = await api("workarea/bio");
+    }
     if (state.page === "distributeWork") {
         state.basic = await api("basic");
         state.workArea = await api("workarea/distribute");
@@ -148,6 +153,7 @@ function render() {
     if (state.page === "assembleWork") content.innerHTML = renderAssembleWork();
     if (state.page === "print") content.innerHTML = renderPrint();
     if (state.page === "sterilizeWork") content.innerHTML = renderSterilizeWork();
+    if (state.page === "bioWork") content.innerHTML = renderBioWork();
     if (state.page === "distributeWork") content.innerHTML = renderDistributeWork();
     if (state.page === "config") content.innerHTML = renderConfig();
     if (state.page === "trace") content.innerHTML = renderTrace();
@@ -499,6 +505,7 @@ function renderSterilizeWork() {
                     <label>标签号<input id="sterilizeLabels" value="${defaultLabelNos(["PRINTED", "PACKED"])}"></label>
                     <label>灭菌设备<select id="sterilizeEquipment">${sterilizeEquipmentOptions()}</select></label>
                     <label>灭菌程序<input id="sterilizeProgram" value="标准"></label>
+                    <label>生物监测<select id="needBio"><option value="false">不需要</option><option value="true">需要</option></select></label>
                     <button class="primary" id="sterilizeStartBtn">开始灭菌</button>
                 </div>
             </div>
@@ -531,10 +538,61 @@ function renderSterilizeWork() {
                     ["equipment_name", "设备"],
                     ["program_name", "程序"],
                     ["package_list", "标签清单"],
-                    ["result", "结果", v => v === null || v === undefined ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")]
+                    ["need_bio_test", "生物监测", v => Number(v) === 1 ? tag("需要", "amber") : tag("不需要", "green")],
+                    ["bio_test_status", "生物结果", v => Number(v) === 0 ? tag("待录入", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
+                    ["result", "结果", v => v === null || v === undefined || Number(v) === 0 ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")]
                 ])}</div>
             </section>
         </div>
+    `;
+}
+
+// 渲染生物监测工作区：对需要生物监测的灭菌批次录入结果，合格后标签才进入发放区。
+function renderBioWork() {
+    const data = state.workArea || {};
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>生物监测录入</h2><span class="tag amber">控制灭菌批次放行</span></div>
+            <div class="panel-body">
+                <div class="form-row">
+                    <label>灭菌批次<select id="bioBatch">${bioBatchOptions()}</select></label>
+                    <label>监测结果<select id="bioPass"><option value="true">合格</option><option value="false">阳性/不合格</option></select></label>
+                    <label>指示剂批号<input id="indicatorBatch" value="BIO-${Date.now().toString().slice(-6)}"></label>
+                    <button class="primary" id="bioTestBtn">录入结果</button>
+                </div>
+            </div>
+        </section>
+        <div class="grid cols-2">
+            <section class="panel">
+                <div class="panel-head"><h2>待监测标签</h2></div>
+                <div class="panel-body">${table(data.labels || [], [
+                    ["label_no", "标签号"],
+                    ["package_name", "包名"],
+                    ["lot_no", "来源批次"],
+                    ["status", "状态", v => statusTag(v)]
+                ])}</div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2>灭菌批次</h2></div>
+                <div class="panel-body">${table(data.records || [], [
+                    ["batch_no", "灭菌批次"],
+                    ["equipment_name", "设备"],
+                    ["package_list", "标签清单"],
+                    ["bio_test_status", "生物结果", v => Number(v) === 0 ? tag("待录入", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
+                    ["remark", "备注"]
+                ])}</div>
+            </section>
+        </div>
+        <section class="panel">
+            <div class="panel-head"><h2>监测流水</h2></div>
+            <div class="panel-body">${table(data.tests || [], [
+                ["sterilization_batch_no", "灭菌批次"],
+                ["indicator_batch", "指示剂批号"],
+                ["result", "结果", v => Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
+                ["operator_name", "录入人"],
+                ["input_time", "录入时间"]
+            ])}</div>
+        </section>
     `;
 }
 
@@ -661,6 +719,8 @@ function bindActions() {
     if (sterilizeStartBtn) sterilizeStartBtn.addEventListener("click", sterilizeStart);
     const sterilizeFinishBtn = document.getElementById("sterilizeFinishBtn");
     if (sterilizeFinishBtn) sterilizeFinishBtn.addEventListener("click", sterilizeFinish);
+    const bioTestBtn = document.getElementById("bioTestBtn");
+    if (bioTestBtn) bioTestBtn.addEventListener("click", bioTestLabels);
     const distributeBtn = document.getElementById("distributeBtn");
     if (distributeBtn) distributeBtn.addEventListener("click", distributeLabels);
     const addPackagingBtn = document.getElementById("addPackagingBtn");
@@ -824,6 +884,7 @@ async function sterilizeStart() {
             labelNos: value("sterilizeLabels"),
             equipmentCode: value("sterilizeEquipment"),
             program: value("sterilizeProgram") || "标准",
+            needBio: value("needBio") === "true",
             operatorId: "user-operator",
             deviceCode: "WEB-STERILIZE",
             clientType: "WEB"
@@ -849,6 +910,24 @@ async function sterilizeFinish() {
     });
     showNotice(`灭菌完成：${data.status}`);
     state.workArea = await api("workarea/sterilize");
+    render();
+}
+
+// 录入标签灭菌批次的生物监测结果；合格进入待发放，阳性则锁定召回。
+async function bioTestLabels() {
+    const data = await api("workflow/label/bio-test", {
+        method: "POST",
+        body: {
+            batchNo: value("bioBatch"),
+            pass: value("bioPass") === "true",
+            indicatorBatch: value("indicatorBatch"),
+            operatorId: "user-operator",
+            deviceCode: "WEB-BIO",
+            clientType: "WEB"
+        }
+    });
+    showNotice(`生物监测已录入：${data.status}`);
+    state.workArea = await api("workarea/bio");
     render();
 }
 
@@ -1023,6 +1102,16 @@ function sterilizeBatchOptions() {
     const rows = (state.workArea && state.workArea.records) || [];
     return rows
         .filter(row => row.result === null || row.result === undefined)
+        .map(row => `<option value="${safe(row.batch_no)}">${safe(row.batch_no)} - ${safe(row.equipment_name)}</option>`)
+        .join("");
+}
+
+// 生成待生物监测批次下拉项，优先显示尚未录入结果的灭菌批次。
+function bioBatchOptions() {
+    const rows = (state.workArea && state.workArea.records) || [];
+    const pendingRows = rows.filter(row => Number(row.bio_test_status) === 0);
+    const visibleRows = pendingRows.length ? pendingRows : rows;
+    return visibleRows
         .map(row => `<option value="${safe(row.batch_no)}">${safe(row.batch_no)} - ${safe(row.equipment_name)}</option>`)
         .join("");
 }
