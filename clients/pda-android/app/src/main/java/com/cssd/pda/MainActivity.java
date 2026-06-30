@@ -40,6 +40,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setStatusBarColor(Color.parseColor("#0F172A"));
+        getWindow().setNavigationBarColor(Color.parseColor("#111827"));
         showLogin();
     }
 
@@ -48,13 +50,13 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         LinearLayout root = vertical(0);
         root.setPadding(dp(22), dp(28), dp(22), dp(28));
-        root.setBackgroundColor(Color.rgb(240, 246, 255));
+        root.setBackgroundColor(Color.rgb(246, 248, 251));
         scroll.addView(root);
 
-        TextView logo = text("CSSD PDA", 34, "#0F2F73", true);
+        TextView logo = text("CSSD PDA", 34, "#111827", true);
         logo.setGravity(Gravity.CENTER);
         root.addView(logo);
-        TextView subtitle = text("复用无菌器械闭环追溯系统", 18, "#183B73", true);
+        TextView subtitle = text("复用无菌器械闭环追溯系统", 18, "#475569", true);
         subtitle.setGravity(Gravity.CENTER);
         root.addView(subtitle);
 
@@ -76,20 +78,20 @@ public class MainActivity extends Activity {
         loginButton.setOnClickListener(v -> showHome(userInput.getText().toString().trim()));
         card.addView(loginButton);
 
-        TextView mode = text("当前为在线模式，数据将实时同步", 16, "#1F8F79", false);
+        TextView mode = text("当前为在线模式，数据将实时同步", 16, "#0F9F6E", false);
         mode.setPadding(dp(10), dp(16), dp(10), dp(12));
         card.addView(mode);
         TextView device = text("设备编号：PDA-20240528-0187", 15, "#67748A", false);
         card.addView(device);
-        TextView network = text("网络连接正常", 16, "#08A887", true);
+        TextView network = text("网络连接正常", 16, "#0F9F6E", true);
         network.setPadding(0, dp(10), 0, dp(10));
         card.addView(network);
 
         LinearLayout offline = card();
         offline.setPadding(dp(16), dp(16), dp(16), dp(16));
-        TextView offlineTitle = text("离线任务支持", 17, "#176BFF", true);
+        TextView offlineTitle = text("离线任务支持", 17, "#2563EB", true);
         offline.addView(offlineTitle);
-        offline.addView(text("无网络时可正常执行扫描、录入等操作，任务将自动缓存，联网后自动同步。", 14, "#65758B", false));
+        offline.addView(text("无网络时可正常执行扫描、录入等操作，任务将自动缓存，联网后自动同步。", 14, "#64748B", false));
         addMargin(card, offline, 0, 16, 0, 0);
 
         setContentView(scroll);
@@ -100,18 +102,18 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         LinearLayout root = vertical(0);
         root.setPadding(0, 0, 0, dp(18));
-        root.setBackgroundColor(Color.rgb(240, 246, 255));
+        root.setBackgroundColor(Color.rgb(246, 248, 251));
         scroll.addView(root);
 
         LinearLayout header = vertical(0);
         header.setPadding(dp(22), dp(18), dp(22), dp(28));
-        header.setBackground(gradient("#176BFF", "#0A55DF"));
+        header.setBackground(gradient("#0F172A", "#1D4ED8"));
         root.addView(header);
         TextView time = text("10:30", 19, "#FFFFFF", false);
         header.addView(time);
         TextView title = text("CSSD PDA", 30, "#FFFFFF", true);
         header.addView(title);
-        TextView user = text((userName.isEmpty() ? "张工" : userName) + "    已同步 10:28", 16, "#DCEAFF", false);
+        TextView user = text((userName.isEmpty() ? "张工" : userName) + "    已同步 10:28", 16, "#BFDBFE", false);
         header.addView(user);
 
         LinearLayout content = vertical(0);
@@ -121,20 +123,20 @@ public class MainActivity extends Activity {
         LinearLayout offlineBar = card();
         offlineBar.setPadding(dp(14), dp(12), dp(14), dp(12));
         addMargin(content, offlineBar, 0, -18, 0, 12);
-        offlineBar.addView(text("当前离线：正常使用，数据将稍后自动同步        查看详情 >", 15, "#176BFF", true));
+        offlineBar.addView(text("当前离线：正常使用，数据将稍后自动同步        查看详情 >", 15, "#2563EB", true));
 
         LinearLayout stats = horizontal();
-        stats.addView(statusCard("待下收", "16", "#E9F8EF", "#18A56C"));
-        stats.addView(statusCard("待下送", "35", "#EEF4FF", "#176BFF"));
-        stats.addView(statusCard("待同步", String.valueOf(readQueue().length()), "#FFF6E8", "#FF9500"));
-        stats.addView(statusCard("异常", "2", "#FFF0F0", "#EF4444"));
+        stats.addView(statusCard("待下收", "16", "#EAFBF3", "#0F9F6E"));
+        stats.addView(statusCard("待下送", "35", "#EFF6FF", "#2563EB"));
+        stats.addView(statusCard("待同步", String.valueOf(readQueue().length()), "#FFF7ED", "#D97706"));
+        stats.addView(statusCard("异常", "2", "#FEF2F2", "#DC2626"));
         content.addView(stats);
 
         TextView scanTitle = sectionTitle("快捷扫码");
         content.addView(scanTitle);
         LinearLayout scanCard = card();
         scanCard.setPadding(dp(18), dp(18), dp(18), dp(18));
-        scanCard.addView(text("点击扫描条码 / RFID   >", 18, "#7A8798", false));
+        scanCard.addView(text("点击扫描条码 / RFID   >", 18, "#64748B", false));
         packageInput = input("请输入或扫描包条码");
         basketInput = input("筐条码，例如 BASK-02");
         deptInput = input("科室编码，例如 OR");
@@ -149,28 +151,28 @@ public class MainActivity extends Activity {
         LinearLayout actions = card();
         actions.setPadding(dp(12), dp(16), dp(12), dp(16));
         LinearLayout row1 = horizontal();
-        row1.addView(actionTile("下收", "#17B26A", v -> cacheEvent()));
-        row1.addView(actionTile("下送", "#176BFF", v -> cacheEvent()));
-        row1.addView(actionTile("追溯查询", "#06A6B8", v -> setMessage("请输入包码后进行追溯查询")));
+        row1.addView(actionTile("下收", "#0F9F6E", v -> cacheEvent()));
+        row1.addView(actionTile("下送", "#2563EB", v -> cacheEvent()));
+        row1.addView(actionTile("追溯查询", "#0891B2", v -> setMessage("请输入包码后进行追溯查询")));
         actions.addView(row1);
         LinearLayout row2 = horizontal();
-        row2.addView(actionTile("异常登记", "#FF5A45", v -> setMessage("异常已记录到本地待同步")));
-        row2.addView(actionTile("借包处理", "#7C4DFF", v -> setMessage("借包处理入口已准备")));
-        row2.addView(actionTile("同步记录", "#176BFF", v -> syncEvents()));
+        row2.addView(actionTile("异常登记", "#DC2626", v -> setMessage("异常已记录到本地待同步")));
+        row2.addView(actionTile("借包处理", "#7C3AED", v -> setMessage("借包处理入口已准备")));
+        row2.addView(actionTile("同步记录", "#2563EB", v -> syncEvents()));
         actions.addView(row2);
         content.addView(actions);
 
         content.addView(sectionTitle("最近任务"));
         LinearLayout taskCard = card();
         taskCard.setPadding(dp(16), dp(12), dp(16), dp(12));
-        taskListText = text("", 15, "#31435B", false);
+        taskListText = text("", 15, "#334155", false);
         taskCard.addView(taskListText);
         content.addView(taskCard);
 
-        messageText = text("等待扫描", 15, "#176BFF", true);
+        messageText = text("等待扫描", 15, "#2563EB", true);
         messageText.setPadding(dp(4), dp(12), dp(4), dp(6));
         content.addView(messageText);
-        syncCountText = text("", 14, "#67748A", false);
+        syncCountText = text("", 14, "#64748B", false);
         content.addView(syncCountText);
 
         LinearLayout bottom = horizontal();
@@ -319,9 +321,10 @@ public class MainActivity extends Activity {
         LinearLayout layout = vertical(0);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Color.WHITE);
-        bg.setCornerRadius(dp(14));
-        bg.setStroke(1, Color.rgb(220, 230, 245));
+        bg.setCornerRadius(dp(16));
+        bg.setStroke(1, Color.rgb(220, 228, 240));
         layout.setBackground(bg);
+        layout.setElevation(dp(2));
         return layout;
     }
 
@@ -337,16 +340,16 @@ public class MainActivity extends Activity {
 
     // 创建表单字段标签。
     private TextView label(String value) {
-        TextView tv = text(value, 15, "#344767", false);
+        TextView tv = text(value, 15, "#475569", false);
         tv.setPadding(0, dp(12), 0, dp(6));
         return tv;
     }
 
     // 创建类似下拉选择器的医院文本控件。
     private TextView selectorText(String value) {
-        TextView tv = text(value + "      ˅", 18, "#1C2D4A", true);
+        TextView tv = text(value + "      ˅", 18, "#111827", true);
         tv.setPadding(dp(14), dp(14), dp(14), dp(14));
-        tv.setBackground(stroke("#D7E2F2", "#FFFFFF", 10));
+        tv.setBackground(stroke("#CBD5E1", "#FFFFFF", 12));
         return tv;
     }
 
@@ -357,7 +360,9 @@ public class MainActivity extends Activity {
         edit.setTextSize(17);
         edit.setSingleLine(true);
         edit.setPadding(dp(14), 0, dp(14), 0);
-        edit.setBackground(stroke("#D7E2F2", "#FFFFFF", 10));
+        edit.setTextColor(Color.parseColor("#111827"));
+        edit.setHintTextColor(Color.parseColor("#94A3B8"));
+        edit.setBackground(stroke("#CBD5E1", "#FFFFFF", 12));
         addMargin(edit, 0, 0, 0, 10);
         return edit;
     }
@@ -369,7 +374,9 @@ public class MainActivity extends Activity {
         button.setTextSize(20);
         button.setTextColor(Color.WHITE);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        button.setBackground(stroke("#176BFF", "#176BFF", 14));
+        button.setAllCaps(false);
+        button.setBackground(stroke("#2563EB", "#2563EB", 14));
+        button.setElevation(dp(2));
         addMargin(button, 0, 16, 0, 10);
         return button;
     }
@@ -378,7 +385,8 @@ public class MainActivity extends Activity {
     private TextView statusCard(String title, String value, String bgColor, String textColor) {
         TextView tv = text(title + "\n" + value, 18, textColor, true);
         tv.setPadding(dp(10), dp(12), dp(10), dp(12));
-        tv.setBackground(stroke("#00000000", bgColor, 10));
+        tv.setGravity(Gravity.CENTER);
+        tv.setBackground(stroke("#00000000", bgColor, 14));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(92), 1);
         lp.setMargins(dp(4), dp(4), dp(4), dp(12));
         tv.setLayoutParams(lp);
@@ -387,10 +395,11 @@ public class MainActivity extends Activity {
 
     // 创建常用功能宫格按钮。
     private TextView actionTile(String title, String color, View.OnClickListener listener) {
-        TextView tv = text(title, 16, "#202B3D", true);
+        TextView tv = text(title, 16, "#111827", true);
         tv.setGravity(Gravity.CENTER);
         tv.setPadding(dp(8), dp(18), dp(8), dp(18));
-        tv.setBackground(stroke(color, "#FFFFFF", 12));
+        tv.setBackground(stroke(color, "#FFFFFF", 14));
+        tv.setElevation(dp(1));
         tv.setOnClickListener(listener);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(86), 1);
         lp.setMargins(dp(5), dp(5), dp(5), dp(5));
@@ -400,14 +409,14 @@ public class MainActivity extends Activity {
 
     // 创建区块标题。
     private TextView sectionTitle(String value) {
-        TextView tv = text(value, 20, "#1C2D4A", true);
-        tv.setPadding(0, dp(14), 0, dp(8));
+        TextView tv = text(value, 20, "#111827", true);
+        tv.setPadding(0, dp(16), 0, dp(8));
         return tv;
     }
 
     // 创建底部导航文本。
     private TextView navText(String value, boolean active) {
-        TextView tv = text(value, 14, active ? "#176BFF" : "#7A8798", true);
+        TextView tv = text(value, 14, active ? "#2563EB" : "#64748B", true);
         tv.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(56), 1);
         tv.setLayoutParams(lp);

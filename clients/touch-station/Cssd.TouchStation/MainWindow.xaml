@@ -9,7 +9,7 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         ResizeMode="CanResize"
-        Background="#F5F8FC">
+        Background="#F6F8FB">
     <Window.Resources>
         <!-- 大按钮样式：用于触摸屏底部操作区，保证手指点击面积足够大。 -->
         <Style x:Key="TouchButton" TargetType="Button">
@@ -23,7 +23,10 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border CornerRadius="8" Background="{TemplateBinding Background}" Padding="20,0">
+                        <Border CornerRadius="12" Background="{TemplateBinding Background}" Padding="20,0">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity=".14"/>
+                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -37,7 +40,7 @@
             <Setter Property="Height" Value="36"/>
             <Setter Property="Margin" Value="4,0,0,0"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="#1FFFFFFF"/>
+            <Setter Property="Background" Value="#22FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="18"/>
             <Setter Property="FontWeight" Value="Bold"/>
@@ -45,7 +48,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -55,11 +58,25 @@
 
         <!-- 信息卡样式：统一左侧器械包信息与右侧单据信息的视觉。 -->
         <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#D8E4F4"/>
+            <Setter Property="Background" Value="#FDFEFF"/>
+            <Setter Property="BorderBrush" Value="#DCE5F2"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="CornerRadius" Value="14"/>
             <Setter Property="Padding" Value="18"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="2" Opacity=".08"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="CaretBrush" Value="#2563EB"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
     </Window.Resources>
 
@@ -68,9 +85,9 @@
         <Grid x:Name="LoginPanel">
             <Grid.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#005E62" Offset="0"/>
-                    <GradientStop Color="#008D85" Offset=".54"/>
-                    <GradientStop Color="#043C54" Offset="1"/>
+                    <GradientStop Color="#0F172A" Offset="0"/>
+                    <GradientStop Color="#1D4ED8" Offset=".58"/>
+                    <GradientStop Color="#0891B2" Offset="1"/>
                 </LinearGradientBrush>
             </Grid.Background>
             <Grid.ColumnDefinitions>
@@ -86,26 +103,26 @@
 
             <StackPanel Margin="42,36,36,36">
                 <StackPanel Orientation="Horizontal">
-                    <Border Width="54" Height="54" CornerRadius="14" Background="#1ED6C2">
+                    <Border Width="54" Height="54" CornerRadius="14" Background="#2563EB">
                         <TextBlock Text="＋" Foreground="White" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel Margin="14,0,0,0">
                         <TextBlock Text="CSSD 消毒供应中心追溯系统" Foreground="White" FontSize="25" FontWeight="Bold"/>
-                        <TextBlock Text="Central Sterile Supply Department Tracking System" Foreground="#CDEBEA" FontSize="14"/>
+                        <TextBlock Text="Central Sterile Supply Department Tracking System" Foreground="#C7D2FE" FontSize="14"/>
                     </StackPanel>
                 </StackPanel>
 
                 <TextBlock Text="CSSD 消毒供应中心追溯系统" Foreground="White" FontSize="42" FontWeight="Bold" Margin="0,120,0,16"/>
-                <TextBlock Text="复用无菌器械全生命周期追溯管理" Foreground="#E6FFFB" FontSize="24"/>
+                <TextBlock Text="复用无菌器械全生命周期追溯管理" Foreground="#E0F2FE" FontSize="24"/>
 
                 <StackPanel Orientation="Horizontal" Margin="0,70,0,0">
-                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#70D64A"><TextBlock Text="回收" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#12C7C0"><TextBlock Text="清洗" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#1E9BFF"><TextBlock Text="配包" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#5D8CFF"><TextBlock Text="打包" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#8065F2"><TextBlock Text="灭菌" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#0DB8A6"><TextBlock Text="发放" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                    <Border Width="76" Height="76" CornerRadius="38" Background="#70D64A"><TextBlock Text="回收" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#0F9F6E"><TextBlock Text="回收" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#0891B2"><TextBlock Text="清洗" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#2563EB"><TextBlock Text="配包" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#4F46E5"><TextBlock Text="打包" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#7C3AED"><TextBlock Text="灭菌" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                    <Border Width="76" Height="76" CornerRadius="38" Margin="0,0,14,0" Background="#0E7490"><TextBlock Text="发放" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                    <Border Width="76" Height="76" CornerRadius="38" Background="#D97706"><TextBlock Text="召回" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
                 </StackPanel>
 
                 <UniformGrid Columns="5" Margin="0,180,0,0">
@@ -117,17 +134,20 @@
                 </UniformGrid>
             </StackPanel>
 
-            <Border Grid.Column="1" Width="430" Padding="36" CornerRadius="16" Background="#F8FCFF" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <Border Grid.Column="1" Width="430" Padding="36" CornerRadius="18" Background="#FDFEFF" BorderBrush="#E2E8F0" BorderThickness="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="34" ShadowDepth="6" Opacity=".18"/>
+                </Border.Effect>
                 <StackPanel>
-                    <TextBlock Text="用户登录" FontSize="30" FontWeight="Bold" Foreground="#123156" HorizontalAlignment="Center"/>
-                    <TextBlock Text="请扫描工牌或输入用户名登录系统" FontSize="16" Foreground="#708198" Margin="0,12,0,24" HorizontalAlignment="Center"/>
-                    <Border Width="190" Height="190" CornerRadius="95" BorderBrush="#9DEBE4" BorderThickness="1" HorizontalAlignment="Center" Margin="0,0,0,28">
-                        <TextBlock Text="扫码" Foreground="#10B7A7" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBlock Text="用户登录" FontSize="30" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center"/>
+                    <TextBlock Text="请扫描工牌或输入用户名登录系统" FontSize="16" Foreground="#64748B" Margin="0,12,0,24" HorizontalAlignment="Center"/>
+                    <Border Width="180" Height="180" CornerRadius="90" BorderBrush="#BFDBFE" Background="#EFF6FF" BorderThickness="1" HorizontalAlignment="Center" Margin="0,0,0,28">
+                        <TextBlock Text="扫码" Foreground="#2563EB" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
-                    <TextBlock Text="用户名 / 工号" Foreground="#52637A" FontSize="15"/>
+                    <TextBlock Text="用户名 / 工号" Foreground="#475569" FontSize="15"/>
                     <TextBox x:Name="LoginWorkNoInput" Text="O001" Height="54" FontSize="20" Margin="0,8,0,18" Padding="14,0"/>
-                    <Button x:Name="LoginButton" Content="登录" Height="56" Background="#08AD9D" Foreground="White" FontSize="22" FontWeight="Bold" BorderThickness="0" Click="LoginButton_Click"/>
-                    <TextBlock x:Name="LoginMessageText" Text="当前终端：回收工位01" Foreground="#52637A" FontSize="14" Margin="0,22,0,0"/>
+                    <Button x:Name="LoginButton" Content="登录" Height="56" Background="#2563EB" Foreground="White" FontSize="22" FontWeight="Bold" BorderThickness="0" Click="LoginButton_Click"/>
+                    <TextBlock x:Name="LoginMessageText" Text="当前终端：回收工位01" Foreground="#64748B" FontSize="14" Margin="0,22,0,0"/>
                 </StackPanel>
             </Border>
         </Grid>
@@ -140,7 +160,13 @@
                 <RowDefinition Height="96"/>
             </Grid.RowDefinitions>
 
-            <Border Background="#073D94" MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
+            <Border MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#0F172A" Offset="0"/>
+                        <GradientStop Color="#1D4ED8" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
                 <Grid Margin="22,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -151,8 +177,8 @@
                         <TextBlock x:Name="UserNameText" Text="当前用户  张三" Foreground="White" FontSize="16" Margin="0,0,24,0"/>
                         <TextBlock x:Name="DeptText" Text="所属科室  心外科一区" Foreground="White" FontSize="16" Margin="0,0,24,0"/>
                         <TextBlock x:Name="CurrentTimeText" Text="10:30:45" Foreground="White" FontSize="24" FontWeight="Bold" Margin="0,0,24,0"/>
-                        <TextBlock x:Name="NetworkText" Text="网络正常" Foreground="#77F0B4" FontSize="16" Margin="0,0,18,0"/>
-                        <TextBlock x:Name="WorkMessageText" Text="等待操作" Foreground="#CDEBEA" FontSize="16"/>
+                        <TextBlock x:Name="NetworkText" Text="网络正常" Foreground="#86EFAC" FontSize="16" Margin="0,0,18,0"/>
+                        <TextBlock x:Name="WorkMessageText" Text="等待操作" Foreground="#BFDBFE" FontSize="16"/>
                         <Button Content="—" Style="{StaticResource WindowButton}" Click="MinimizeButton_Click"/>
                         <Button Content="□" Style="{StaticResource WindowButton}" Click="MaximizeButton_Click"/>
                         <Button Content="×" Style="{StaticResource WindowButton}" Background="#CCEF4444" Click="CloseButton_Click"/>
@@ -168,16 +194,16 @@
 
                 <StackPanel>
                     <UniformGrid Columns="2" Margin="0,0,0,14">
-                        <Button Content="科室回收" Height="54" Background="#176BFF" Foreground="White" FontSize="20" BorderThickness="0"/>
-                        <Button Content="PDA清点" Height="54" Background="White" Foreground="#162033" FontSize="20" BorderBrush="#AFC7EA"/>
+                        <Button Content="科室回收" Height="54" Background="#2563EB" Foreground="White" FontSize="20" BorderThickness="0"/>
+                        <Button Content="PDA清点" Height="54" Background="White" Foreground="#111827" FontSize="20" BorderBrush="#CBD5E1"/>
                     </UniformGrid>
-                    <TextBlock Text="科室" Foreground="#123156" FontWeight="Bold" FontSize="16"/>
+                    <TextBlock Text="科室" Foreground="#111827" FontWeight="Bold" FontSize="16"/>
                     <TextBox x:Name="SecondInput" Text="BASK-01" Height="48" FontSize="18" Margin="0,8,0,18" Padding="12,0"/>
-                    <TextBlock Text="器械包搜索" Foreground="#123156" FontWeight="Bold" FontSize="16"/>
+                    <TextBlock Text="器械包搜索" Foreground="#111827" FontWeight="Bold" FontSize="16"/>
                     <TextBox x:Name="PackageCodeInput" Height="52" FontSize="20" Margin="0,8,0,14" Padding="12,0"/>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Text="器械包信息" Foreground="#176BFF" FontWeight="Bold" FontSize="20" Margin="0,0,0,12"/>
+                            <TextBlock Text="器械包信息" Foreground="#2563EB" FontWeight="Bold" FontSize="20" Margin="0,0,0,12"/>
                             <TextBlock x:Name="PackageInfoText" Text="请扫描或选择器械包" FontSize="16" Foreground="#334155" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
@@ -196,12 +222,12 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="当前回收单" Foreground="#176BFF" FontWeight="Bold" FontSize="22" Margin="0,0,0,16"/>
+                                <TextBlock Text="当前回收单" Foreground="#2563EB" FontWeight="Bold" FontSize="22" Margin="0,0,0,16"/>
                                 <TextBlock x:Name="CurrentOrderNoText" Text="回收单号  -" FontSize="18" Margin="0,0,0,12"/>
                                 <TextBlock Text="来源方式  触摸台录入" FontSize="18" Margin="0,0,0,12"/>
                                 <TextBlock x:Name="RecycleUserText" Text="回收人  -" FontSize="18"/>
                             </StackPanel>
-                            <Border Grid.Column="1" Background="#D8E4F4"/>
+                            <Border Grid.Column="1" Background="#DCE5F2"/>
                             <StackPanel Grid.Column="2" Margin="40,0,0,0">
                                 <TextBlock x:Name="TotalCountText" Text="包数量  0" FontSize="19" Margin="0,36,0,18"/>
                                 <TextBlock x:Name="ReturnCountText" Text="还包数  0" FontSize="19"/>
@@ -209,10 +235,13 @@
                         </Grid>
                     </Border>
 
-                    <Border Grid.Row="1" BorderBrush="#176BFF" BorderThickness="2" CornerRadius="8" Background="White" Padding="20" Margin="0,22,0,0">
+                    <Border Grid.Row="1" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="16" Background="White" Padding="20" Margin="0,22,0,0">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="24" ShadowDepth="2" Opacity=".08"/>
+                        </Border.Effect>
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="扫描器械包条码 / 手动输入包码" Foreground="#176BFF" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,42,0,12"/>
-                            <TextBlock DockPanel.Dock="Top" Text="请扫描条码或手动输入包码" Foreground="#65758B" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,36"/>
+                            <TextBlock DockPanel.Dock="Top" Text="扫描器械包条码 / 手动输入包码" Foreground="#2563EB" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,42,0,12"/>
+                            <TextBlock DockPanel.Dock="Top" Text="请扫描条码或手动输入包码" Foreground="#64748B" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,36"/>
                             <ListView x:Name="PackageList" FontSize="16" SelectionChanged="PackageList_SelectionChanged">
                                 <ListView.View>
                                     <GridView>
@@ -230,11 +259,11 @@
             </Grid>
 
             <UniformGrid Grid.Row="2" Columns="5" Margin="22,0,22,18">
-                <Button x:Name="ScanButton" Content="扫码加入  F1" Style="{StaticResource TouchButton}" Background="#176BFF" Click="SubmitButton_Click"/>
-                <Button Content="标记异常  F2" Style="{StaticResource TouchButton}" Background="#FF4A3D"/>
-                <Button Content="保存草稿  F3" Style="{StaticResource TouchButton}" Background="#FF8A00"/>
-                <Button x:Name="SubmitButton" Content="提交回收单  F4" Style="{StaticResource TouchButton}" Background="#08A887" Click="SubmitButton_Click"/>
-                <Button Content="进入待清洗  F5" Style="{StaticResource TouchButton}" Background="#073D94"/>
+                <Button x:Name="ScanButton" Content="扫码加入  F1" Style="{StaticResource TouchButton}" Background="#2563EB" Click="SubmitButton_Click"/>
+                <Button Content="标记异常  F2" Style="{StaticResource TouchButton}" Background="#DC2626"/>
+                <Button Content="保存草稿  F3" Style="{StaticResource TouchButton}" Background="#D97706"/>
+                <Button x:Name="SubmitButton" Content="提交回收单  F4" Style="{StaticResource TouchButton}" Background="#0F9F6E" Click="SubmitButton_Click"/>
+                <Button Content="进入待清洗  F5" Style="{StaticResource TouchButton}" Background="#0F172A"/>
             </UniformGrid>
         </Grid>
     </Grid>

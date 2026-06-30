@@ -128,6 +128,7 @@ async function api(path, options = {}) {
 }
 
 function renderLogin() {
+    document.body.classList.add("is-login");
     document.getElementById("pageTitle").textContent = "后台登录";
     document.getElementById("content").innerHTML = `
         <section class="admin-login">
@@ -162,6 +163,7 @@ function renderLogin() {
 }
 
 function render() {
+    document.body.classList.remove("is-login");
     document.getElementById("pageTitle").textContent = pageTitles[state.page];
     const content = document.getElementById("content");
     if (state.page === "dashboard") content.innerHTML = renderDashboard();
@@ -1203,10 +1205,12 @@ function trackingModeTag(value) {
 function table(rows, columns) {
     if (!rows || !rows.length) return document.getElementById("emptyTpl").innerHTML;
     return `
+        <div class="table-wrap">
         <table>
             <thead><tr>${columns.map(c => `<th>${c[1]}</th>`).join("")}</tr></thead>
             <tbody>${rows.map(row => `<tr>${columns.map(c => `<td>${c[2] ? c[2](row[c[0]], row) : safe(row[c[0]])}</td>`).join("")}</tr>`).join("")}</tbody>
         </table>
+        </div>
     `;
 }
 
