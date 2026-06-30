@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CSSD全自动化追溯系统</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="shell">
+    <aside class="side">
+        <div class="brand">
+            <span class="brand-mark">CSSD</span>
+            <strong>全流程追溯</strong>
+        </div>
+        <nav class="nav" id="nav">
+            <button class="nav-item active" data-page="dashboard">工作区总览</button>
+            <button class="nav-item" data-page="basic">基础信息</button>
+            <button class="nav-item" data-page="recycleWork">回收工作区</button>
+            <button class="nav-item" data-page="print">打印模板</button>
+            <button class="nav-item" data-page="config">参数配置</button>
+            <button class="nav-item" data-page="trace">追溯查询</button>
+            <button class="nav-item" data-page="report">统计报表</button>
+        </nav>
+        <div class="side-footer">
+            <span id="healthDot" class="dot"></span>
+            <span id="healthText">服务连接中</span>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">医院内网部署版</p>
+                <h1 id="pageTitle">总览大屏</h1>
+            </div>
+            <div class="top-actions">
+                <span id="clock" class="clock"></span>
+                <button class="ghost" id="refreshBtn">刷新</button>
+                <button class="ghost hidden" id="logoutBtn">退出</button>
+            </div>
+        </header>
+
+        <section id="notice" class="notice hidden"></section>
+        <section id="content" class="content"></section>
+    </main>
+</div>
+
+<template id="emptyTpl">
+    <div class="empty">暂无数据</div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
