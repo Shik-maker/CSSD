@@ -1,17 +1,18 @@
 :root {
     color-scheme: light;
-    --bg: #f3f6f4;
+    --bg: #f4f7fb;
     --panel: #ffffff;
-    --panel-soft: #edf7f1;
-    --ink: #17201b;
-    --muted: #69756e;
-    --line: #d9e1dd;
-    --green: #16794a;
-    --teal: #087c84;
-    --amber: #b46b07;
-    --red: #b93232;
-    --blue: #2f64a3;
-    --shadow: 0 12px 30px rgba(20, 45, 34, .08);
+    --panel-soft: #eef7ff;
+    --ink: #162033;
+    --muted: #6b7890;
+    --line: #dbe5f1;
+    --green: #11b984;
+    --teal: #08b5bd;
+    --amber: #ff9500;
+    --red: #ef4444;
+    --blue: #176bff;
+    --purple: #7c4dff;
+    --shadow: 0 14px 36px rgba(23, 51, 92, .08);
 }
 
 * {
@@ -45,17 +46,19 @@ button {
 .side {
     display: flex;
     flex-direction: column;
-    padding: 18px;
-    background: #ffffff;
-    border-right: 1px solid var(--line);
+    padding: 18px 14px;
+    background: linear-gradient(180deg, #102034 0%, #15263c 100%);
+    border-right: 1px solid #0c1828;
+    color: #dceaff;
 }
 
 .brand {
     display: flex;
     align-items: center;
     gap: 12px;
-    height: 58px;
-    margin-bottom: 12px;
+    min-height: 72px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
 }
 
 .brand-mark {
@@ -69,6 +72,20 @@ button {
     font-weight: 800;
 }
 
+.brand strong {
+    display: block;
+    max-width: 138px;
+    line-height: 1.25;
+}
+
+.brand small {
+    width: 100%;
+    color: #7e90a8;
+    font-size: 11px;
+    margin-left: 66px;
+    margin-top: -14px;
+}
+
 .nav {
     display: grid;
     gap: 8px;
@@ -78,7 +95,7 @@ button {
     height: 46px;
     border: 1px solid transparent;
     border-radius: 7px;
-    color: var(--muted);
+    color: #aebbd0;
     background: transparent;
     text-align: left;
     padding: 0 14px;
@@ -86,9 +103,9 @@ button {
 
 .nav-item.active,
 .nav-item:hover {
-    color: var(--ink);
-    background: var(--panel-soft);
-    border-color: #cce4d6;
+    color: #ffffff;
+    background: rgba(17, 185, 132, .16);
+    border-color: rgba(17, 185, 132, .35);
 }
 
 .side-footer {
@@ -117,7 +134,7 @@ button {
 }
 
 .main {
-    padding: 22px 26px 34px;
+    padding: 22px 28px 34px;
 }
 
 .topbar {
@@ -223,6 +240,10 @@ h1 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.grid.cols-6 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .panel {
     background: var(--panel);
     border: 1px solid var(--line);
@@ -254,6 +275,8 @@ h1 {
     border: 1px solid var(--line);
     border-radius: 8px;
     box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
 }
 
 .metric b {
@@ -264,6 +287,37 @@ h1 {
 
 .metric span {
     color: var(--muted);
+}
+
+.metric small {
+    color: #9aa8bb;
+}
+
+.metric::after {
+    content: "";
+    position: absolute;
+    right: -18px;
+    bottom: -22px;
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    background: rgba(23, 107, 255, .08);
+}
+
+.metric-green::after {
+    background: rgba(17, 185, 132, .13);
+}
+
+.metric-blue::after {
+    background: rgba(23, 107, 255, .13);
+}
+
+.metric-purple::after {
+    background: rgba(124, 77, 255, .14);
+}
+
+.metric-amber::after {
+    background: rgba(255, 149, 0, .16);
 }
 
 .station-tabs {
@@ -458,6 +512,166 @@ tr:hover td {
     color: var(--muted);
 }
 
+.admin-login {
+    min-height: calc(100vh - 116px);
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) 460px;
+    gap: 34px;
+    align-items: center;
+    padding: 28px;
+    border-radius: 8px;
+    color: #fff;
+    background:
+        linear-gradient(90deg, rgba(0, 116, 112, .93), rgba(4, 66, 84, .9)),
+        radial-gradient(circle at 30% 70%, rgba(34, 211, 238, .24), transparent 36%),
+        #064e5f;
+    box-shadow: var(--shadow);
+}
+
+.login-visual h2 {
+    margin: 34px 0 12px;
+    font-size: 40px;
+}
+
+.login-visual p {
+    font-size: 22px;
+    margin: 0 0 46px;
+}
+
+.login-badge {
+    display: inline-grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    font-weight: 800;
+    background: rgba(255, 255, 255, .14);
+    border: 1px solid rgba(255, 255, 255, .28);
+}
+
+.flow-ribbon,
+.login-feature-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.flow-ribbon span {
+    display: inline-grid;
+    place-items: center;
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1bd6ba, #176bff);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, .18);
+    font-weight: 700;
+}
+
+.login-feature-row {
+    margin-top: 70px;
+    color: rgba(255, 255, 255, .82);
+}
+
+.login-card {
+    padding: 34px;
+    border-radius: 8px;
+    color: var(--ink);
+    background: rgba(255, 255, 255, .94);
+    border: 1px solid rgba(255, 255, 255, .7);
+    box-shadow: 0 24px 70px rgba(0, 33, 51, .22);
+}
+
+.login-card h2 {
+    text-align: center;
+    font-size: 28px;
+    margin: 0 0 8px;
+}
+
+.scan-orbit {
+    width: 188px;
+    height: 188px;
+    margin: 24px auto;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #0aa99a;
+    font-weight: 800;
+    border: 1px solid #a9ebe5;
+    box-shadow: 0 0 0 22px rgba(10, 169, 154, .08), 0 0 0 44px rgba(10, 169, 154, .06);
+}
+
+.login-submit {
+    width: 100%;
+    height: 54px;
+    margin-top: 10px;
+    background: linear-gradient(90deg, #0db8a6, #02a99a);
+    border: 0;
+}
+
+.dashboard-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    align-items: center;
+    padding: 20px 22px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: linear-gradient(135deg, #ffffff, #eef8ff);
+    box-shadow: var(--shadow);
+}
+
+.dashboard-hero h2 {
+    margin: 0 0 8px;
+    font-size: 30px;
+}
+
+.hero-status {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 4px 8px;
+    align-items: center;
+    min-width: 190px;
+    padding: 14px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid var(--line);
+}
+
+.hero-status small {
+    grid-column: 2;
+    color: var(--muted);
+}
+
+.dashboard-main {
+    grid-template-columns: 1.35fr .95fr;
+}
+
+.trend-lines {
+    display: grid;
+    gap: 14px;
+}
+
+.trend-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 48px;
+    gap: 12px;
+    align-items: center;
+}
+
+.trend-row div {
+    height: 10px;
+    border-radius: 99px;
+    background: #eef3f9;
+    overflow: hidden;
+}
+
+.trend-row i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #16c7af, #176bff);
+}
+
 .split-line {
     height: 1px;
     background: var(--line);
@@ -471,9 +685,12 @@ tr:hover td {
 
     .shell,
     .touch-layout,
+    .admin-login,
     .grid.cols-2,
     .grid.cols-3,
     .grid.cols-4,
+    .grid.cols-6,
+    .dashboard-main,
     .screen-board {
         grid-template-columns: 1fr;
     }

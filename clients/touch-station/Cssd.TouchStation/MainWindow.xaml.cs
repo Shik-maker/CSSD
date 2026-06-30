@@ -4,6 +4,8 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace Cssd.TouchStation;
 
@@ -12,6 +14,7 @@ public partial class MainWindow : Window
     private readonly TouchConfig _config;
     private readonly HttpClient _http = new();
     private readonly ObservableCollection<PackageTask> _tasks = new();
+    private readonly DispatcherTimer _clockTimer = new();
 
     public MainWindow()
     {
@@ -19,16 +22,20 @@ public partial class MainWindow : Window
         _config = TouchConfig.Load();
         _http.BaseAddress = new Uri(_config.ServerBaseUrl.TrimEnd('/') + "/");
         PackageList.ItemsSource = _tasks;
-        StationText.Text = $"{StationName(_config.StationCode)} / {_config.DeviceCode}";
-        SecondInput.Text = DefaultSecondInput();
-        Loaded += async (_, _) => await LoadTasksAsync();
+        ConfigureStationText();
+        ConfigureClock();
     }
 
-    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+    // 登录按钮只做本地终端身份切换，真实业务操作仍由后端接口留痕。
+    private async void LoginButton_Click(object sender, RoutedEventArgs e)
     {
+        UserNameText.Text = $"当前用户  {LoginWorkNoInput.Text.Trim()}";
+        LoginPanel.Visibility = Visibility.Collapsed;
+        WorkPanel.Visibility = Visibility.Visible;
         await LoadTasksAsync();
     }
 
+    // 底部扫码/提交按钮统一走当前工位接口，工位由 appsettings.json 控制。
     private async void SubmitButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -41,30 +48,43 @@ public partial class MainWindow : Window
             }
             if (string.IsNullOrWhiteSpace(packageCode))
             {
-                MessageText.Text = "请先扫描或选择包";
+                SetMessage("请先扫描或选择器械包");
                 return;
             }
 
             var payload = BuildPayload(packageCode, second);
-            var api = ApiForStation();
             var json = JsonSerializer.Serialize(payload);
-            var response = await _http.PostAsync(api, new StringContent(json, Encoding.UTF8, "application/json"));
+            var response = await _http.PostAsync(ApiForStation(), new StringContent(json, Encoding.UTF8, "application/json"));
             var body = await response.Content.ReadAsStringAsync();
             if (!body.Contains("\"success\":true"))
             {
-                MessageText.Text = "操作失败：" + body;
+                SetMessage("操作失败：" + body);
                 return;
             }
-            MessageText.Text = "操作完成，已同步后台";
+
+            SetMessage("操作完成，已同步后台");
             PackageCodeInput.Clear();
             await LoadTasksAsync();
         }
         catch (Exception ex)
         {
-            MessageText.Text = "连接后台失败：" + ex.Message;
+            SetMessage("连接后台失败：" + ex.Message);
+            NetworkText.Text = "网络异常";
         }
     }
 
+    // 选择任务时刷新左侧器械包信息，减少触摸台重复输入。
+    private void PackageList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PackageList.SelectedItem is not PackageTask selected)
+        {
+            return;
+        }
+        PackageCodeInput.Text = selected.InstanceCode;
+        PackageInfoText.Text = $"包码：{selected.InstanceCode}\n包名称：{selected.PackageName}\n来源科室：{selected.DeptName}\n当前状态：{selected.StatusText}\n批次：{selected.BatchNo}";
+    }
+
+    // 从后台加载当前工位可处理任务，并同步到回收单概览区域。
     private async Task LoadTasksAsync()
     {
         try
@@ -82,14 +102,38 @@ public partial class MainWindow : Window
                     item.TryGetProperty("current_batch_no", out var batch) ? batch.GetString() ?? "" : ""
                 ));
             }
-            MessageText.Text = $"已加载 {_tasks.Count} 条任务";
+            NetworkText.Text = "网络正常";
+            UpdateSummary();
         }
         catch (Exception ex)
         {
-            MessageText.Text = "加载任务失败：" + ex.Message;
+            SetMessage("加载任务失败：" + ex.Message);
+            NetworkText.Text = "网络异常";
         }
     }
 
+    // 根据当前任务集合生成界面顶部单据摘要，贴近设计图的当前回收单区域。
+    private void UpdateSummary()
+    {
+        var first = _tasks.FirstOrDefault();
+        CurrentOrderNoText.Text = first == null ? "回收单号  -" : $"回收单号  {first.BatchNo}";
+        RecycleUserText.Text = $"回收人  {LoginWorkNoInput.Text.Trim()}";
+        TotalCountText.Text = $"包数量  {_tasks.Count}";
+        ReturnCountText.Text = $"还包数  {_tasks.Count(x => x.StatusText.Contains("借包") || x.StatusText.Contains("使用"))}";
+        PackageInfoText.Text = first == null
+            ? "请扫描或选择器械包"
+            : $"包码：{first.InstanceCode}\n包名称：{first.PackageName}\n来源科室：{first.DeptName}\n当前状态：{first.StatusText}\n批次：{first.BatchNo}";
+        SetMessage($"已加载 {_tasks.Count} 条任务");
+    }
+
+    // 同步更新登录页和工作台提示，避免界面切换后反馈不可见。
+    private void SetMessage(string message)
+    {
+        LoginMessageText.Text = message;
+        WorkMessageText.Text = message;
+    }
+
+    // 根据不同工位生成对应请求体，确保同一个安装包可通过配置切换回收、配包、发放等模式。
     private Dictionary<string, object> BuildPayload(string packageCode, string second)
     {
         return _config.StationCode switch
@@ -103,6 +147,7 @@ public partial class MainWindow : Window
         };
     }
 
+    // 返回当前工位要调用的后台接口地址。
     private string ApiForStation() => _config.StationCode switch
     {
         "recycle" => "workflow/recycle",
@@ -113,6 +158,26 @@ public partial class MainWindow : Window
         _ => "workflow/recycle"
     };
 
+    // 初始化工位标题、默认输入项和登录页终端提示。
+    private void ConfigureStationText()
+    {
+        var stationName = StationName(_config.StationCode);
+        StationTitleText.Text = $"CSSD 复用无菌器械闭环追溯系统 - {stationName}操作台";
+        LoginMessageText.Text = $"当前终端：{stationName}01";
+        SecondInput.Text = DefaultSecondInput();
+        DeptText.Text = "所属科室  CSSD";
+    }
+
+    // 每秒刷新顶部时间，保持触摸台大屏实时感。
+    private void ConfigureClock()
+    {
+        _clockTimer.Interval = TimeSpan.FromSeconds(1);
+        _clockTimer.Tick += (_, _) => CurrentTimeText.Text = DateTime.Now.ToString("HH:mm:ss");
+        _clockTimer.Start();
+        CurrentTimeText.Text = DateTime.Now.ToString("HH:mm:ss");
+    }
+
+    // 按工位返回第二输入框默认值，回收为筐号，灭菌为设备，发放为科室。
     private string DefaultSecondInput() => _config.StationCode switch
     {
         "recycle" => "BASK-01",
@@ -121,17 +186,19 @@ public partial class MainWindow : Window
         _ => ""
     };
 
+    // 工位编码转换为中文名称，统一登录页和工作台标题。
     private static string StationName(string station) => station switch
     {
-        "recycle" => "回收台",
-        "wash" => "清洗台",
-        "assemble" => "配包台",
-        "pack" => "打包台",
-        "sterilize" => "灭菌台",
-        "distribute" => "发放台",
+        "recycle" => "回收区",
+        "wash" => "清洗区",
+        "assemble" => "配包区",
+        "pack" => "打包区",
+        "sterilize" => "灭菌区",
+        "distribute" => "发放区",
         _ => station
     };
 
+    // 后端状态码转换为触摸台操作员可读文本。
     private static string StatusText(string status) => status switch
     {
         "IN_DEPT" => "科室在库",
@@ -141,6 +208,7 @@ public partial class MainWindow : Window
         "PACKED" => "待灭菌",
         "BIO_PENDING" => "待生物监测",
         "STERILIZED" => "待发放",
+        "DISTRIBUTED" => "已发放",
         _ => status
     };
 }
@@ -149,6 +217,7 @@ public record PackageTask(string InstanceCode, string PackageName, string Status
 
 public record TouchConfig(string ServerBaseUrl, string StationCode, string DeviceCode, string OperatorWorkNo, bool CameraEnabled, bool AutoUploadVideo)
 {
+    // 从安装目录读取触摸台配置，现场只需修改配置文件即可切换服务器和工位。
     public static TouchConfig Load()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");

@@ -130,12 +130,30 @@ async function api(path, options = {}) {
 function renderLogin() {
     document.getElementById("pageTitle").textContent = "后台登录";
     document.getElementById("content").innerHTML = `
-        <section class="panel" style="max-width:460px">
-            <div class="panel-head"><h2>CSSD管理后台</h2></div>
-            <div class="panel-body big-scan">
+        <section class="admin-login">
+            <div class="login-visual">
+                <div class="login-badge">CSSD</div>
+                <h2>CSSD 消毒供应中心追溯系统</h2>
+                <p>复用无菌器械全生命周期追溯管理</p>
+                <div class="flow-ribbon">
+                    ${["回收", "清洗", "配包", "打包", "灭菌", "发放", "使用/借包"].map(x => `<span>${x}</span>`).join("")}
+                </div>
+                <div class="login-feature-row">
+                    <span>全流程追溯</span>
+                    <span>质量安全管控</span>
+                    <span>数据统计分析</span>
+                    <span>视频过程留痕</span>
+                </div>
+            </div>
+            <div class="login-card">
+                <h2>用户登录</h2>
+                <p class="subtle">请扫描工牌或输入账号登录系统</p>
+                <div class="scan-orbit">
+                    <div>扫码</div>
+                </div>
                 <label>工号<input id="loginWorkNo" value="A001" autocomplete="username"></label>
                 <label>密码<input id="loginPassword" type="password" value="123456" autocomplete="current-password"></label>
-                <button class="primary" id="loginBtn">登录</button>
+                <button class="primary login-submit" id="loginBtn">登录</button>
                 <p class="subtle">初始账号：A001 / 123456</p>
             </div>
         </section>
@@ -184,17 +202,61 @@ function logout() {
 
 function renderDashboard() {
     const data = state.dashboard || {};
-    const metrics = (data.stations || []).map(row => `
-        <div class="metric">
-            <b>${row.count}</b>
-            <span>${row.station}</span>
+    const stageCards = [
+        ["回收中", dashboardCount(data.stations, "recycle"), "green"],
+        ["清洗批次", dashboardCount(data.stations, "wash"), "blue"],
+        ["配包数量", dashboardCount(data.stations, "assemble"), "purple"],
+        ["打包数量", dashboardCount(data.stations, "pack"), "amber"],
+        ["灭菌批次", dashboardCount(data.stations, "sterilize"), "gray"],
+        ["发放数量", dashboardCount(data.stations, "distribute"), "gray"]
+    ].map(row => `
+        <div class="metric metric-${row[2]}">
+            <span>${row[0]}</span>
+            <b>${row[1]}</b>
+            <small>今日实时</small>
         </div>
     `).join("");
     return `
-        <div class="grid cols-4">${metrics}</div>
+        <section class="dashboard-hero">
+            <div>
+                <p class="eyebrow">CSSD 数据看板</p>
+                <h2>全流程闭环追溯</h2>
+                <p class="subtle">回收、清洗、配包、打包、灭菌、发放与 PDA 离线同步统一留痕。</p>
+            </div>
+            <div class="hero-status">
+                <span class="dot ok"></span>
+                <strong>内网服务正常</strong>
+                <small>${new Date().toLocaleDateString()}</small>
+            </div>
+        </section>
+        <div class="grid cols-6">${stageCards}</div>
+        <div class="grid dashboard-main">
+            <section class="panel">
+                <div class="panel-head"><h2>各环节工作量趋势</h2><span class="tag blue">近 7 天</span></div>
+                <div class="panel-body">
+                    <div class="trend-lines">
+                        ${(data.stations || []).slice(0, 6).map((row, index) => `
+                            <div class="trend-row">
+                                <span>${stageLabel(row.station)}</span>
+                                <div><i style="width:${Math.min(100, Number(row.count || 0) * 14 + 18)}%"></i></div>
+                                <b>${safe(row.count)}</b>
+                            </div>
+                        `).join("") || document.getElementById("emptyTpl").innerHTML}
+                    </div>
+                </div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2>设备运行状态</h2><span class="tag green">状态可视</span></div>
+                <div class="panel-body">${table(data.equipment || [], [
+                    ["equipment_code", "设备编号"],
+                    ["equipment_name", "设备名称"],
+                    ["status", "状态", v => equipmentStatus(v)]
+                ])}</div>
+            </section>
+        </div>
         <div class="grid cols-2">
             <section class="panel">
-                <div class="panel-head"><h2>待办工作区</h2><span class="tag green">管理端查看</span></div>
+                <div class="panel-head"><h2>待办事项</h2><span class="tag red">需处理</span></div>
                 <div class="panel-body">${table(data.recentEvents || [], [
                     ["package_code", "包编码"],
                     ["event_type", "事件"],
@@ -203,24 +265,34 @@ function renderDashboard() {
                 ])}</div>
             </section>
             <section class="panel">
-                <div class="panel-head"><h2>设备运行状态</h2></div>
-                <div class="panel-body">${table(data.equipment || [], [
-                    ["equipment_code", "设备编号"],
-                    ["equipment_name", "设备名称"],
-                    ["status", "状态", v => equipmentStatus(v)]
+                <div class="panel-head"><h2>近效期提醒</h2><span class="tag amber">30 天内</span></div>
+                <div class="panel-body">${table(data.nearExpiry || [], [
+                    ["instance_code", "包编码"],
+                    ["package_name", "包名称"],
+                    ["dept_name", "所在科室"],
+                    ["sterilization_expire_at", "效期"]
                 ])}</div>
             </section>
         </div>
-        <section class="panel">
-            <div class="panel-head"><h2>近效期提醒</h2></div>
-            <div class="panel-body">${table(data.nearExpiry || [], [
-                ["instance_code", "包编码"],
-                ["package_name", "包名称"],
-                ["dept_name", "所在科室"],
-                ["sterilization_expire_at", "效期"]
-            ])}</div>
-        </section>
     `;
+}
+
+// 从后端统计列表中取指定工位数量，缺失时按 0 展示，避免看板空洞。
+function dashboardCount(stations, key) {
+    const row = (stations || []).find(item => String(item.station || "").toLowerCase() === key);
+    return row ? row.count : 0;
+}
+
+// 将工位编码转换为看板中文名称，保持统计图和导航文案一致。
+function stageLabel(value) {
+    return {
+        recycle: "回收",
+        wash: "清洗",
+        assemble: "配包",
+        pack: "打包",
+        sterilize: "灭菌",
+        distribute: "发放"
+    }[value] || value;
 }
 
 function renderBasic() {
