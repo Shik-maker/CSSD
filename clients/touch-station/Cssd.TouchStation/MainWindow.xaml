@@ -7,6 +7,8 @@
         MinHeight="760"
         MinWidth="1080"
         WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
         Background="#F5F8FC">
     <Window.Resources>
         <!-- 大按钮样式：用于触摸屏底部操作区，保证手指点击面积足够大。 -->
@@ -22,6 +24,28 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border CornerRadius="8" Background="{TemplateBinding Background}" Padding="20,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 窗口控制按钮样式：用于触摸屏右上角最小化、最大化、关闭。 -->
+        <Style x:Key="WindowButton" TargetType="Button">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#1FFFFFFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -53,6 +77,12 @@
                 <ColumnDefinition Width="1.25*"/>
                 <ColumnDefinition Width="520"/>
             </Grid.ColumnDefinitions>
+            <Border Height="72" VerticalAlignment="Top" Background="Transparent" Grid.ColumnSpan="2" Panel.ZIndex="8" MouseLeftButtonDown="DragArea_MouseLeftButtonDown"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,18,24,0" Panel.ZIndex="9">
+                <Button Content="—" Style="{StaticResource WindowButton}" Click="MinimizeButton_Click"/>
+                <Button Content="□" Style="{StaticResource WindowButton}" Click="MaximizeButton_Click"/>
+                <Button Content="×" Style="{StaticResource WindowButton}" Background="#CCEF4444" Click="CloseButton_Click"/>
+            </StackPanel>
 
             <StackPanel Margin="42,36,36,36">
                 <StackPanel Orientation="Horizontal">
@@ -110,7 +140,7 @@
                 <RowDefinition Height="96"/>
             </Grid.RowDefinitions>
 
-            <Border Background="#073D94">
+            <Border Background="#073D94" MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
                 <Grid Margin="22,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -123,6 +153,9 @@
                         <TextBlock x:Name="CurrentTimeText" Text="10:30:45" Foreground="White" FontSize="24" FontWeight="Bold" Margin="0,0,24,0"/>
                         <TextBlock x:Name="NetworkText" Text="网络正常" Foreground="#77F0B4" FontSize="16" Margin="0,0,18,0"/>
                         <TextBlock x:Name="WorkMessageText" Text="等待操作" Foreground="#CDEBEA" FontSize="16"/>
+                        <Button Content="—" Style="{StaticResource WindowButton}" Click="MinimizeButton_Click"/>
+                        <Button Content="□" Style="{StaticResource WindowButton}" Click="MaximizeButton_Click"/>
+                        <Button Content="×" Style="{StaticResource WindowButton}" Background="#CCEF4444" Click="CloseButton_Click"/>
                     </StackPanel>
                 </Grid>
             </Border>

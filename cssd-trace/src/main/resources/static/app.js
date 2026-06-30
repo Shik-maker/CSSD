@@ -202,17 +202,11 @@ function logout() {
 
 function renderDashboard() {
     const data = state.dashboard || {};
-    const stageCards = [
-        ["回收中", dashboardCount(data.stations, "recycle"), "green"],
-        ["清洗批次", dashboardCount(data.stations, "wash"), "blue"],
-        ["配包数量", dashboardCount(data.stations, "assemble"), "purple"],
-        ["打包数量", dashboardCount(data.stations, "pack"), "amber"],
-        ["灭菌批次", dashboardCount(data.stations, "sterilize"), "gray"],
-        ["发放数量", dashboardCount(data.stations, "distribute"), "gray"]
-    ].map(row => `
-        <div class="metric metric-${row[2]}">
-            <span>${row[0]}</span>
-            <b>${row[1]}</b>
+    const colors = ["green", "blue", "purple", "amber", "gray", "red", "blue"];
+    const stageCards = (data.stations || []).map((row, index) => `
+        <div class="metric metric-${colors[index % colors.length]}">
+            <span>${safe(row.station)}工作量</span>
+            <b>${safe(row.count)}</b>
             <small>今日实时</small>
         </div>
     `).join("");
@@ -229,13 +223,13 @@ function renderDashboard() {
                 <small>${new Date().toLocaleDateString()}</small>
             </div>
         </section>
-        <div class="grid cols-6">${stageCards}</div>
+        <div class="grid metric-board">${stageCards}</div>
         <div class="grid dashboard-main">
             <section class="panel">
                 <div class="panel-head"><h2>各环节工作量趋势</h2><span class="tag blue">近 7 天</span></div>
                 <div class="panel-body">
                     <div class="trend-lines">
-                        ${(data.stations || []).slice(0, 6).map((row, index) => `
+                        ${(data.stations || []).map(row => `
                             <div class="trend-row">
                                 <span>${stageLabel(row.station)}</span>
                                 <div><i style="width:${Math.min(100, Number(row.count || 0) * 14 + 18)}%"></i></div>
@@ -277,12 +271,6 @@ function renderDashboard() {
     `;
 }
 
-// 从后端统计列表中取指定工位数量，缺失时按 0 展示，避免看板空洞。
-function dashboardCount(stations, key) {
-    const row = (stations || []).find(item => String(item.station || "").toLowerCase() === key);
-    return row ? row.count : 0;
-}
-
 // 将工位编码转换为看板中文名称，保持统计图和导航文案一致。
 function stageLabel(value) {
     return {
@@ -291,7 +279,8 @@ function stageLabel(value) {
         assemble: "配包",
         pack: "打包",
         sterilize: "灭菌",
-        distribute: "发放"
+        distribute: "发放",
+        bio: "生物监测"
     }[value] || value;
 }
 

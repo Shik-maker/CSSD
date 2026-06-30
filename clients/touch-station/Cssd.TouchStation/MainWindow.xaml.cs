@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace Cssd.TouchStation;
@@ -24,6 +25,52 @@ public partial class MainWindow : Window
         PackageList.ItemsSource = _tasks;
         ConfigureStationText();
         ConfigureClock();
+    }
+
+    // 顶部空白区域支持拖动窗口，双击可最大化或还原，方便触摸端在桌面调试时移动。
+    private void DragArea_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            ToggleWindowState();
+            return;
+        }
+
+        if (e.ButtonState == MouseButtonState.Pressed)
+        {
+            try
+            {
+                DragMove();
+            }
+            catch (InvalidOperationException)
+            {
+                // 鼠标状态被系统打断时忽略，避免影响业务操作。
+            }
+        }
+    }
+
+    // 最小化窗口，用于触摸台桌面调试和多程序切换。
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    // 最大化/还原窗口，等同于系统标题栏的最大化按钮。
+    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleWindowState();
+    }
+
+    // 关闭触摸台程序。
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    // 在最大化和普通窗口之间切换。
+    private void ToggleWindowState()
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     }
 
     // 登录按钮只做本地终端身份切换，真实业务操作仍由后端接口留痕。

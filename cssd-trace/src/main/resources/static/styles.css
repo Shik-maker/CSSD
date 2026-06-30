@@ -244,6 +244,10 @@ h1 {
     grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.metric-board {
+    grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
+}
+
 .panel {
     background: var(--panel);
     border: 1px solid var(--line);
@@ -643,7 +647,8 @@ tr:hover td {
 }
 
 .dashboard-main {
-    grid-template-columns: 1.35fr .95fr;
+    grid-template-columns: minmax(520px, 1.35fr) minmax(360px, .95fr);
+    align-items: start;
 }
 
 .trend-lines {
