@@ -154,10 +154,16 @@
 
         <!-- 工作台：对应设计图“回收触摸台界面”，其他工位通过配置切换文案与接口。 -->
         <Grid x:Name="WorkPanel" Visibility="Collapsed">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#F8FAFC" Offset="0"/>
+                    <GradientStop Color="#EEF4FB" Offset="1"/>
+                </LinearGradientBrush>
+            </Grid.Background>
             <Grid.RowDefinitions>
-                <RowDefinition Height="64"/>
+                <RowDefinition Height="74"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="96"/>
+                <RowDefinition Height="110"/>
             </Grid.RowDefinitions>
 
             <Border MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
@@ -186,9 +192,9 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" Margin="22">
+            <Grid Grid.Row="1" Margin="26">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="320"/>
+                    <ColumnDefinition Width="350"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -209,9 +215,9 @@
                     </Border>
                 </StackPanel>
 
-                <Grid Grid.Column="1" Margin="22,0,0,0">
+                <Grid Grid.Column="1" Margin="24,0,0,0">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="190"/>
+                        <RowDefinition Height="178"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Border Style="{StaticResource Card}">
@@ -240,8 +246,8 @@
                             <DropShadowEffect BlurRadius="24" ShadowDepth="2" Opacity=".08"/>
                         </Border.Effect>
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="扫描器械包条码 / 手动输入包码" Foreground="#2563EB" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,42,0,12"/>
-                            <TextBlock DockPanel.Dock="Top" Text="请扫描条码或手动输入包码" Foreground="#64748B" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,36"/>
+                            <TextBlock DockPanel.Dock="Top" Text="扫描器械包条码 / 手动输入包码" Foreground="#2563EB" FontSize="28" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,22,0,10"/>
+                            <TextBlock DockPanel.Dock="Top" Text="请扫描条码或手动输入包码" Foreground="#64748B" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,22"/>
                             <ListView x:Name="PackageList" FontSize="16" SelectionChanged="PackageList_SelectionChanged">
                                 <ListView.View>
                                     <GridView>
@@ -258,7 +264,8 @@
                 </Grid>
             </Grid>
 
-            <UniformGrid Grid.Row="2" Columns="5" Margin="22,0,22,18">
+            <Border Grid.Row="2" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0"/>
+            <UniformGrid Grid.Row="2" Columns="5" Margin="26,16,26,18">
                 <Button x:Name="ScanButton" Content="扫码加入  F1" Style="{StaticResource TouchButton}" Background="#2563EB" Click="SubmitButton_Click"/>
                 <Button Content="标记异常  F2" Style="{StaticResource TouchButton}" Background="#DC2626"/>
                 <Button Content="保存草稿  F3" Style="{StaticResource TouchButton}" Background="#D97706"/>

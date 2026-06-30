@@ -10,16 +10,25 @@ const state = {
 };
 
 const pageTitles = {
-    dashboard: "工作区总览",
+    dashboard: "数据总览",
     basic: "基础信息",
-    recycleWork: "回收工作区",
-    washWork: "清洗工作区",
-    assembleWork: "配包工作区",
+    packageManage: "器械包管理",
+    packagingManage: "包装管理",
+    instrumentManage: "器械管理",
+    equipmentManage: "设备管理",
+    recycleWork: "回收单管理",
+    washWork: "清洗记录管理",
+    assembleWork: "配包记录管理",
     print: "打印模板",
-    sterilizeWork: "灭菌工作区",
-    bioWork: "生物监测工作区",
-    distributeWork: "发放工作区",
+    sterilizeWork: "灭菌记录管理",
+    bioWork: "生物监测记录管理",
+    distributeWork: "发放单管理",
+    departmentApply: "器械包申领（借包）",
     config: "参数配置",
+    roleManage: "角色管理",
+    userManage: "人员管理",
+    departmentManage: "科室管理",
+    menuManage: "菜单管理",
     trace: "追溯查询",
     report: "统计报表"
 };
@@ -63,10 +72,10 @@ async function refresh() {
         renderLogin();
         return;
     }
-    if (state.page === "dashboard" || state.page === "report") {
+    if (state.page === "dashboard" || state.page === "report" || state.page === "equipmentManage") {
         state.dashboard = await api("dashboard");
     }
-    if (state.page === "basic" || state.page === "config") {
+    if (["basic", "config", "packageManage", "packagingManage", "instrumentManage", "equipmentManage", "roleManage", "userManage", "departmentManage", "menuManage", "departmentApply"].includes(state.page)) {
         state.basic = await api("basic");
     }
     if (state.page === "recycleWork") {
@@ -168,6 +177,10 @@ function render() {
     const content = document.getElementById("content");
     if (state.page === "dashboard") content.innerHTML = renderDashboard();
     if (state.page === "basic") content.innerHTML = renderBasic();
+    if (state.page === "packageManage") content.innerHTML = renderPackageManage();
+    if (state.page === "packagingManage") content.innerHTML = renderPackagingManage();
+    if (state.page === "instrumentManage") content.innerHTML = renderInstrumentManage();
+    if (state.page === "equipmentManage") content.innerHTML = renderEquipmentManage();
     if (state.page === "recycleWork") content.innerHTML = renderRecycleWork();
     if (state.page === "washWork") content.innerHTML = renderWashWork();
     if (state.page === "assembleWork") content.innerHTML = renderAssembleWork();
@@ -175,7 +188,12 @@ function render() {
     if (state.page === "sterilizeWork") content.innerHTML = renderSterilizeWork();
     if (state.page === "bioWork") content.innerHTML = renderBioWork();
     if (state.page === "distributeWork") content.innerHTML = renderDistributeWork();
+    if (state.page === "departmentApply") content.innerHTML = renderDepartmentApply();
     if (state.page === "config") content.innerHTML = renderConfig();
+    if (state.page === "roleManage") content.innerHTML = renderRoleManage();
+    if (state.page === "userManage") content.innerHTML = renderUserManage();
+    if (state.page === "departmentManage") content.innerHTML = renderDepartmentManage();
+    if (state.page === "menuManage") content.innerHTML = renderMenuManage();
     if (state.page === "trace") content.innerHTML = renderTrace();
     if (state.page === "report") content.innerHTML = renderReport();
     bindActions();
@@ -217,7 +235,7 @@ function renderDashboard() {
             <div>
                 <p class="eyebrow">CSSD 数据看板</p>
                 <h2>全流程闭环追溯</h2>
-                <p class="subtle">回收、清洗、配包、打包、灭菌、发放与 PDA 离线同步统一留痕。</p>
+                <p class="subtle">Web 端只做数据查询、单据查看、单据编辑和追溯留痕；现场业务由触摸端和 PDA 执行。</p>
             </div>
             <div class="hero-status">
                 <span class="dot ok"></span>
@@ -365,31 +383,243 @@ function renderBasic() {
     `;
 }
 
-// 渲染回收工作区：展示触摸台/PDA 写入后的回收单、明细和临床批次。
-function renderRecycleWork() {
-    const data = state.workArea || {};
+function renderPackageManage() {
+    const data = state.basic || {};
+    return `
+        <section class="section-hero">
+            <div>
+                <p class="eyebrow">基础信息</p>
+                <h2>器械包管理</h2>
+                <p class="subtle">维护器械包编码、追溯模式、业务范围和有效期，作为后续回收、清洗、配包和发放的基础数据。</p>
+            </div>
+            <button class="primary" id="addClinicalPackageBtn">新增临床包示例</button>
+        </section>
+        <section class="panel">
+            <div class="panel-head"><h2>器械包目录</h2><span class="tag blue">基础主数据</span></div>
+            <div class="panel-body">${table(data.packageTypes || [], [
+                ["package_code", "包编码"],
+                ["package_name", "包名称"],
+                ["category", "分类"],
+                ["tracking_mode", "追溯模式", v => trackingModeTag(v)],
+                ["package_scope", "业务范围"],
+                ["validity_days", "有效期"]
+            ])}</div>
+        </section>
+        <section class="panel">
+            <div class="panel-head"><h2>器械实例状态</h2><span class="tag green">库存状态</span></div>
+            <div class="panel-body">${table(data.packages || [], [
+                ["instance_code", "包条码"],
+                ["package_name", "包名称"],
+                ["current_status", "状态", v => statusTag(v)],
+                ["dept_name", "所在科室"],
+                ["current_batch_no", "当前批次"]
+            ])}</div>
+        </section>
+    `;
+}
+
+function renderPackagingManage() {
+    const data = state.basic || {};
     return `
         <section class="panel">
-            <div class="panel-head"><h2>临床批量回收录入</h2><span class="tag amber">触摸台/PDA 写入后后台同步可见</span></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <label>包类型<select id="batchPackageType">${packageOptions("BATCH")}</select></label>
-                    <label>来源科室<select id="batchDept">${deptOptions()}</select></label>
-                    <label>回收数量<input id="batchQty" type="number" min="1" value="5"></label>
-                    <label>绑定筐<select id="batchBasket">${basketOptions()}</select></label>
-                    <button class="primary" id="createBatchRecycleBtn">生成回收单</button>
-                </div>
+            <div class="panel-head"><h2>包装管理</h2><button class="ghost" id="addPackagingBtn">新增包材</button></div>
+            <div class="panel-body">${table(data.packaging || [], [
+                ["packaging_code", "包材编码"],
+                ["packaging_name", "包材名称"],
+                ["validity_days", "有效期天数"],
+                ["status", "状态", v => Number(v) === 1 ? tag("启用", "green") : tag("停用", "red")]
+            ])}</div>
+        </section>
+        <section class="panel">
+            <div class="panel-head"><h2>筐管理</h2><button class="ghost" id="addBasketBtn">新增筐</button></div>
+            <div class="panel-body">${table(data.baskets || [], [
+                ["basket_code", "筐编码"],
+                ["status", "状态"],
+                ["current_batch_no", "当前批次"],
+                ["package_list", "绑定内容"]
+            ])}</div>
+        </section>
+    `;
+}
+
+function renderInstrumentManage() {
+    const data = state.basic || {};
+    const rows = (data.packageTypes || []).flatMap(pkg => {
+        const instruments = normalizeList(pkg.instrument_list);
+        return instruments.map(item => ({
+            package_code: pkg.package_code,
+            package_name: pkg.package_name,
+            instrument_code: item.code,
+            instrument_name: item.name,
+            qty: item.qty
+        }));
+    });
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>器械管理</h2><span class="tag blue">来自器械包清单</span></div>
+            <div class="panel-body">${table(rows, [
+                ["instrument_code", "器械编码"],
+                ["instrument_name", "器械名称"],
+                ["qty", "数量"],
+                ["package_name", "所属器械包"],
+                ["package_code", "包编码"]
+            ])}</div>
+        </section>
+    `;
+}
+
+function normalizeList(value) {
+    if (Array.isArray(value)) return value;
+    if (!value) return [];
+    if (typeof value === "string") {
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+function renderEquipmentManage() {
+    const data = state.dashboard || {};
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>设备管理</h2><span class="tag green">运行状态</span></div>
+            <div class="panel-body">${table(data.equipment || [], [
+                ["equipment_code", "设备编号"],
+                ["equipment_name", "设备名称"],
+                ["status", "状态", v => equipmentStatus(v)]
+            ])}</div>
+        </section>
+    `;
+}
+
+function renderDepartmentApply() {
+    const data = state.basic || {};
+    return `
+        <section class="section-hero">
+            <div>
+                <p class="eyebrow">科室工作区</p>
+                <h2>器械包申领（借包）</h2>
+                <p class="subtle">当前版本先展示可申领器械包和科室基础数据，后续可接入正式申领、审批和借包归还流程。</p>
             </div>
         </section>
         <div class="grid cols-2">
             <section class="panel">
-                <div class="panel-head"><h2>回收单</h2></div>
+                <div class="panel-head"><h2>可申领器械包</h2></div>
+                <div class="panel-body">${table(data.packages || [], [
+                    ["instance_code", "包条码"],
+                    ["package_name", "包名称"],
+                    ["current_status", "状态", v => statusTag(v)],
+                    ["dept_name", "当前科室"]
+                ])}</div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2>科室信息</h2></div>
+                <div class="panel-body">${table(data.departments || [], [
+                    ["dept_code", "科室编码"],
+                    ["dept_name", "科室名称"],
+                    ["dept_type", "类型"],
+                    ["barcode", "条码"]
+                ])}</div>
+            </section>
+        </div>
+    `;
+}
+
+function renderRoleManage() {
+    const data = state.basic || {};
+    const rows = [...new Set((data.users || []).map(row => row.role_code).filter(Boolean))].map(code => ({
+        role_code: code,
+        user_count: (data.users || []).filter(row => row.role_code === code).length
+    }));
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>角色管理</h2><span class="tag blue">按现有人员角色汇总</span></div>
+            <div class="panel-body">${table(rows, [
+                ["role_code", "角色编码"],
+                ["user_count", "关联人员数"]
+            ])}</div>
+        </section>
+    `;
+}
+
+function renderUserManage() {
+    const data = state.basic || {};
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>人员管理</h2><span class="tag green">账号与岗位</span></div>
+            <div class="panel-body">${table(data.users || [], [
+                ["work_no", "工号"],
+                ["user_name", "姓名"],
+                ["role_code", "角色"],
+                ["user_type", "人员类型"]
+            ])}</div>
+        </section>
+    `;
+}
+
+function renderDepartmentManage() {
+    const data = state.basic || {};
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>科室管理</h2><span class="tag blue">组织基础数据</span></div>
+            <div class="panel-body">${table(data.departments || [], [
+                ["dept_code", "科室编码"],
+                ["dept_name", "科室名称"],
+                ["dept_type", "类型"],
+                ["barcode", "条码"]
+            ])}</div>
+        </section>
+    `;
+}
+
+function renderMenuManage() {
+    const rows = [
+        ["数据总览", "数据总览", "dashboard"],
+        ["追溯查询", "追溯查询", "trace"],
+        ["统计报表", "工作量统计", "report"],
+        ["基础信息", "器械包管理 / 包装管理 / 器械管理 / 设备管理", "basic"],
+        ["单据管理", "回收单 / 清洗记录 / 配包记录 / 打包标签 / 灭菌记录 / 生物监测记录 / 发放单", "documents"],
+        ["系统管理", "角色管理 / 人员管理 / 科室管理 / 菜单管理", "system"]
+    ].map(row => ({ group: row[0], menu: row[1], page: row[2] }));
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>菜单管理</h2><span class="tag amber">前端菜单结构</span></div>
+            <div class="panel-body">${table(rows, [
+                ["group", "一级菜单"],
+                ["menu", "二级菜单"],
+                ["page", "页面标识"]
+            ])}</div>
+        </section>
+    `;
+}
+
+// 渲染回收单管理：Web 端只展示触摸台/PDA 生成的回收单，并允许编辑备注等单据字段。
+function renderRecycleWork() {
+    const data = state.workArea || {};
+    return `
+        <section class="section-hero">
+            <div>
+                <p class="eyebrow">单据管理</p>
+                <h2>回收单查看与编辑</h2>
+                <p class="subtle">回收业务由触摸端或 PDA 完成，Web 端只查看、修改单据备注、查看明细和追溯批次。</p>
+            </div>
+            <span class="tag blue">非业务操作入口</span>
+        </section>
+        <div class="grid cols-2">
+            <section class="panel">
+                <div class="panel-head"><h2>回收单</h2><span class="tag green">可编辑单据备注</span></div>
                 <div class="panel-body">${table(data.orders || [], [
                     ["order_no", "单号"],
                     ["dept_name", "科室"],
                     ["total_count", "数量"],
                     ["basket_code", "筐"],
-                    ["recycle_time", "回收时间"]
+                    ["recycle_time", "回收时间"],
+                    ["remark", "备注"],
+                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="recycleOrders" data-id="${safe(v)}" data-field="remark" data-current="${safe(row.remark)}">编辑备注</button>`]
                 ])}</div>
             </section>
             <section class="panel">
@@ -418,31 +648,17 @@ function renderRecycleWork() {
     `;
 }
 
-// 渲染清洗工作区：临床批量包按批次进入清洗设备，并在完成后推送到配包区。
+// 渲染清洗记录管理：Web 端只读取清洗批次和清洗记录，不触发开始/完成清洗。
 function renderWashWork() {
     const data = state.workArea || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>批次开始清洗</h2><span class="tag amber">待清洗批次来自回收工作区</span></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <label>待清洗批次<select id="washLot">${lotOptionsByStatus(["RECYCLED"])}</select></label>
-                    <label>清洗设备<select id="washEquipment">${equipmentOptions()}</select></label>
-                    <label>清洗程序<input id="washProgram" value="标准"></label>
-                    <button class="primary" id="washLotStartBtn">开始清洗</button>
-                </div>
+        <section class="section-hero">
+            <div>
+                <p class="eyebrow">单据管理</p>
+                <h2>清洗记录查看与编辑</h2>
+                <p class="subtle">清洗开始、完成和判定在触摸台执行；Web 端展示清洗批次、设备、程序和结果。</p>
             </div>
-        </section>
-        <section class="panel">
-            <div class="panel-head"><h2>批次完成清洗</h2><span class="tag green">合格后进入配包区</span></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <label>清洗批次<select id="washBatch">${washBatchOptions()}</select></label>
-                    <label>判定结果<select id="washPass"><option value="true">合格</option><option value="false">不合格退回</option></select></label>
-                    <label>备注<input id="washRemark" value="清洗合格"></label>
-                    <button class="primary" id="washLotFinishBtn">完成清洗</button>
-                </div>
-            </div>
+            <span class="tag blue">查询 / 编辑</span>
         </section>
         <div class="grid cols-2">
             <section class="panel">
@@ -462,26 +678,26 @@ function renderWashWork() {
                     ["equipment_name", "设备"],
                     ["program_name", "程序"],
                     ["package_list", "批次清单"],
-                    ["result", "结果", v => v === null || v === undefined ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")]
+                    ["result", "结果", v => v === null || v === undefined ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
+                    ["remark", "备注"],
+                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="washRecords" data-id="${safe(v)}" data-field="remark" data-current="${safe(row.remark)}">编辑备注</button>`]
                 ])}</div>
             </section>
         </div>
     `;
 }
 
-// 渲染配包工作区：清洗合格批次完成配包后进入打包/打印区。
+// 渲染配包记录管理：配包完成由触摸端写入，Web 端只查看批次状态和配包留痕。
 function renderAssembleWork() {
     const data = state.workArea || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>批次配包</h2><span class="tag green">配包人会写入后续标签</span></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <label>待配包批次<select id="assembleLot">${lotOptionsByStatus(["WASHED"])}</select></label>
-                    <label>配包人<select id="assemblerUser">${userOptions()}</select></label>
-                    <button class="primary" id="assembleLotBtn">完成配包</button>
-                </div>
+        <section class="section-hero">
+            <div>
+                <p class="eyebrow">单据管理</p>
+                <h2>配包记录查看</h2>
+                <p class="subtle">配包人、配包时间和设备来自触摸端留痕，Web 端只做核对和查询。</p>
             </div>
+            <span class="tag blue">只读留痕</span>
         </section>
         <div class="grid cols-2">
             <section class="panel">
@@ -508,20 +724,17 @@ function renderAssembleWork() {
     `;
 }
 
-// 渲染打印模板页：管理模板，并按临床批次生成器械包标签。
+// 渲染打包标签管理：标签由打包触摸台生成，Web 端只查看标签和维护打印模板。
 function renderPrint() {
     const data = state.workArea || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>器械包标签打印</h2><span class="tag green">灭菌时间=打印日期</span></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <label>来源批次<select id="printLot">${lotOptions()}</select></label>
-                    <label>打印数量<input id="printQty" type="number" min="1" value="1"></label>
-                    <label>模板<select id="printTemplate">${templateOptions("PACKAGE_LABEL")}</select></label>
-                    <button class="primary" id="printLabelBtn">打印标签</button>
-                </div>
+        <section class="section-hero">
+            <div>
+                <p class="eyebrow">单据管理</p>
+                <h2>打包标签与打印模板</h2>
+                <p class="subtle">实际打包和标签打印在打包触摸台执行；Web 端展示打印结果，并维护模板字段属性。</p>
             </div>
+            <span class="tag blue">模板维护</span>
         </section>
         <div class="grid cols-2">
             <section class="panel">
@@ -546,7 +759,7 @@ function renderPrint() {
             </section>
         </div>
         <section class="panel">
-            <div class="panel-head"><h2>可打印批次</h2></div>
+            <div class="panel-head"><h2>待打包批次</h2><span class="tag amber">仅展示，不执行打印</span></div>
             <div class="panel-body">${table(data.lots || [], [
                 ["lot_no", "批次号"],
                 ["package_name", "包名称"],
@@ -557,32 +770,17 @@ function renderPrint() {
     `;
 }
 
-// 渲染灭菌工作区：打包后的标签进入灭菌批次，完成后流转到发放区。
+// 渲染灭菌记录管理：灭菌开始/完成由触摸端执行，Web 端只查询记录和编辑备注。
 function renderSterilizeWork() {
     const data = state.workArea || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>标签开始灭菌</h2><span class="tag amber">选择已打印标签</span></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <label>标签号<input id="sterilizeLabels" value="${defaultLabelNos(["PRINTED", "PACKED"])}"></label>
-                    <label>灭菌设备<select id="sterilizeEquipment">${sterilizeEquipmentOptions()}</select></label>
-                    <label>灭菌程序<input id="sterilizeProgram" value="标准"></label>
-                    <label>生物监测<select id="needBio"><option value="false">不需要</option><option value="true">需要</option></select></label>
-                    <button class="primary" id="sterilizeStartBtn">开始灭菌</button>
-                </div>
+        <section class="section-hero">
+            <div>
+                <p class="eyebrow">单据管理</p>
+                <h2>灭菌记录查看与编辑</h2>
+                <p class="subtle">灭菌装载、完成和监测判定在灭菌触摸台执行；Web 端展示锅次、标签、监测结果和备注。</p>
             </div>
-        </section>
-        <section class="panel">
-            <div class="panel-head"><h2>标签完成灭菌</h2><span class="tag green">合格后进入发放区</span></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <label>灭菌批次<select id="sterilizeBatch">${sterilizeBatchOptions()}</select></label>
-                    <label>物理监测<select id="physicalPass"><option value="true">合格</option><option value="false">不合格</option></select></label>
-                    <label>化学监测<select id="chemicalPass"><option value="true">合格</option><option value="false">不合格</option></select></label>
-                    <button class="primary" id="sterilizeFinishBtn">完成灭菌</button>
-                </div>
-            </div>
+            <span class="tag blue">查询 / 编辑</span>
         </section>
         <div class="grid cols-2">
             <section class="panel">
@@ -603,27 +801,26 @@ function renderSterilizeWork() {
                     ["package_list", "标签清单"],
                     ["need_bio_test", "生物监测", v => Number(v) === 1 ? tag("需要", "amber") : tag("不需要", "green")],
                     ["bio_test_status", "生物结果", v => Number(v) === 0 ? tag("待录入", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
-                    ["result", "结果", v => v === null || v === undefined || Number(v) === 0 ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")]
+                    ["result", "结果", v => v === null || v === undefined || Number(v) === 0 ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
+                    ["remark", "备注"],
+                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="sterilizationRecords" data-id="${safe(v)}" data-field="remark" data-current="${safe(row.remark)}">编辑备注</button>`]
                 ])}</div>
             </section>
         </div>
     `;
 }
 
-// 渲染生物监测工作区：对需要生物监测的灭菌批次录入结果，合格后标签才进入发放区。
+// 渲染生物监测记录管理：生物结果录入由业务终端完成，Web 端只展示影响范围和流水。
 function renderBioWork() {
     const data = state.workArea || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>生物监测录入</h2><span class="tag amber">控制灭菌批次放行</span></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <label>灭菌批次<select id="bioBatch">${bioBatchOptions()}</select></label>
-                    <label>监测结果<select id="bioPass"><option value="true">合格</option><option value="false">阳性/不合格</option></select></label>
-                    <label>指示剂批号<input id="indicatorBatch" value="BIO-${Date.now().toString().slice(-6)}"></label>
-                    <button class="primary" id="bioTestBtn">录入结果</button>
-                </div>
+        <section class="section-hero">
+            <div>
+                <p class="eyebrow">单据管理</p>
+                <h2>生物监测记录查看</h2>
+                <p class="subtle">这里展示需要生物监测的灭菌批次、标签影响范围和录入流水，不在 Web 端执行业务放行。</p>
             </div>
+            <span class="tag blue">只读留痕</span>
         </section>
         <div class="grid cols-2">
             <section class="panel">
@@ -659,19 +856,17 @@ function renderBioWork() {
     `;
 }
 
-// 渲染发放工作区：灭菌合格标签按科室生成发放单。
+// 渲染发放单管理：发放由触摸端/PDA 执行，Web 端只查看发放单和标签去向。
 function renderDistributeWork() {
     const data = state.workArea || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>标签发放</h2><span class="tag green">只能发放灭菌合格标签</span></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <label>标签号<input id="distributeLabels" value="${defaultLabelNos(["STERILIZED"])}"></label>
-                    <label>目标科室<select id="distributeDept">${distributeDeptOptions()}</select></label>
-                    <button class="primary" id="distributeBtn">发放</button>
-                </div>
+        <section class="section-hero">
+            <div>
+                <p class="eyebrow">单据管理</p>
+                <h2>发放单查看</h2>
+                <p class="subtle">发放业务在发放触摸台或 PDA 执行，Web 端只查看发放单、目标科室和标签状态。</p>
             </div>
+            <span class="tag blue">非业务操作入口</span>
         </section>
         <div class="grid cols-2">
             <section class="panel">
@@ -768,24 +963,7 @@ function bindActions() {
     if (traceBtn) traceBtn.addEventListener("click", traceQuery);
     const traceLotBtn = document.getElementById("traceLotBtn");
     if (traceLotBtn) traceLotBtn.addEventListener("click", traceLotQuery);
-    const createBatchRecycleBtn = document.getElementById("createBatchRecycleBtn");
-    if (createBatchRecycleBtn) createBatchRecycleBtn.addEventListener("click", createBatchRecycle);
-    const washLotStartBtn = document.getElementById("washLotStartBtn");
-    if (washLotStartBtn) washLotStartBtn.addEventListener("click", washLotStart);
-    const washLotFinishBtn = document.getElementById("washLotFinishBtn");
-    if (washLotFinishBtn) washLotFinishBtn.addEventListener("click", washLotFinish);
-    const assembleLotBtn = document.getElementById("assembleLotBtn");
-    if (assembleLotBtn) assembleLotBtn.addEventListener("click", assembleLot);
-    const printLabelBtn = document.getElementById("printLabelBtn");
-    if (printLabelBtn) printLabelBtn.addEventListener("click", printLabel);
-    const sterilizeStartBtn = document.getElementById("sterilizeStartBtn");
-    if (sterilizeStartBtn) sterilizeStartBtn.addEventListener("click", sterilizeStart);
-    const sterilizeFinishBtn = document.getElementById("sterilizeFinishBtn");
-    if (sterilizeFinishBtn) sterilizeFinishBtn.addEventListener("click", sterilizeFinish);
-    const bioTestBtn = document.getElementById("bioTestBtn");
-    if (bioTestBtn) bioTestBtn.addEventListener("click", bioTestLabels);
-    const distributeBtn = document.getElementById("distributeBtn");
-    if (distributeBtn) distributeBtn.addEventListener("click", distributeLabels);
+    document.querySelectorAll(".edit-document").forEach(btn => btn.addEventListener("click", editDocumentField));
     const addPackagingBtn = document.getElementById("addPackagingBtn");
     if (addPackagingBtn) addPackagingBtn.addEventListener("click", addPackaging);
     const addBasketBtn = document.getElementById("addBasketBtn");
@@ -849,166 +1027,19 @@ async function traceLotQuery() {
     `;
 }
 
-// 创建临床批量回收单：模拟触摸台/PDA 提交批量回收业务。
-async function createBatchRecycle() {
-    await api("workflow/recycle/batch", {
-        method: "POST",
-        body: {
-            packageTypeCode: value("batchPackageType"),
-            deptCode: value("batchDept"),
-            basketCode: value("batchBasket"),
-            quantity: Number(value("batchQty") || 1),
-            deviceCode: "WEB-RECYCLE",
-            clientType: "WEB"
-        }
+// 编辑已产生单据的备注等后台字段，不触发任何现场业务流转。
+async function editDocumentField(event) {
+    const btn = event.currentTarget;
+    const field = btn.dataset.field;
+    const current = btn.dataset.current || "";
+    const nextValue = prompt("请输入新的单据备注", current);
+    if (nextValue === null) return;
+    await api(`documents/${btn.dataset.type}/${btn.dataset.id}`, {
+        method: "PUT",
+        body: { [field]: nextValue }
     });
-    showNotice("回收单和临床批次已生成");
-    state.workArea = await api("workarea/recycle");
-    render();
-}
-
-// 开始清洗临床批次：调用后端批次清洗接口并刷新清洗工作区。
-async function washLotStart() {
-    const data = await api("workflow/lot/wash/start", {
-        method: "POST",
-        body: {
-            lotNo: value("washLot"),
-            equipmentCode: value("washEquipment"),
-            program: value("washProgram") || "标准",
-            operatorId: "user-operator",
-            deviceCode: "WEB-WASH",
-            clientType: "WEB"
-        }
-    });
-    showNotice(`批次已开始清洗：${data.batchNo}`);
-    state.workArea = await api("workarea/wash");
-    render();
-}
-
-// 完成清洗临床批次：合格进入配包区，不合格退回待清洗。
-async function washLotFinish() {
-    const data = await api("workflow/lot/wash/finish", {
-        method: "POST",
-        body: {
-            batchNo: value("washBatch"),
-            pass: value("washPass") === "true",
-            remark: value("washRemark"),
-            operatorId: "user-operator",
-            deviceCode: "WEB-WASH",
-            clientType: "WEB"
-        }
-    });
-    showNotice(`清洗已完成：${data.status}`);
-    state.workArea = await api("workarea/wash");
-    render();
-}
-
-// 完成配包临床批次：配包人会被后续标签打印自动继承。
-async function assembleLot() {
-    const data = await api("workflow/lot/assemble", {
-        method: "POST",
-        body: {
-            lotNo: value("assembleLot"),
-            assemblerId: value("assemblerUser"),
-            operatorId: value("assemblerUser"),
-            deviceCode: "WEB-ASSEMBLE",
-            clientType: "WEB"
-        }
-    });
-    showNotice(`配包完成：${data.assemblerName}`);
-    state.workArea = await api("workarea/assemble");
-    render();
-}
-
-// 打印器械包标签：标签会记录配包人、打包人、打印时间、灭菌日期和失效日期。
-async function printLabel() {
-    const data = await api("print/package-labels", {
-        method: "POST",
-        body: {
-            lotNo: value("printLot"),
-            quantity: Number(value("printQty") || 1),
-            templateId: value("printTemplate"),
-            assemblerId: "user-operator",
-            packerId: "user-operator",
-            deviceCode: "WEB-PACK",
-            clientType: "WEB"
-        }
-    });
-    showNotice(`已生成标签：${data.labels.join("，")}`);
-    state.workArea = await api("workarea/pack");
-    render();
-}
-
-// 开始标签灭菌：将已打印标签放入灭菌批次。
-async function sterilizeStart() {
-    const data = await api("workflow/label/sterilize/start", {
-        method: "POST",
-        body: {
-            labelNos: value("sterilizeLabels"),
-            equipmentCode: value("sterilizeEquipment"),
-            program: value("sterilizeProgram") || "标准",
-            needBio: value("needBio") === "true",
-            operatorId: "user-operator",
-            deviceCode: "WEB-STERILIZE",
-            clientType: "WEB"
-        }
-    });
-    showNotice(`灭菌已开始：${data.batchNo}`);
-    state.workArea = await api("workarea/sterilize");
-    render();
-}
-
-// 完成标签灭菌：物理和化学均合格后进入待发放。
-async function sterilizeFinish() {
-    const data = await api("workflow/label/sterilize/finish", {
-        method: "POST",
-        body: {
-            batchNo: value("sterilizeBatch"),
-            physicalPass: value("physicalPass") === "true",
-            chemicalPass: value("chemicalPass") === "true",
-            operatorId: "user-operator",
-            deviceCode: "WEB-STERILIZE",
-            clientType: "WEB"
-        }
-    });
-    showNotice(`灭菌完成：${data.status}`);
-    state.workArea = await api("workarea/sterilize");
-    render();
-}
-
-// 录入标签灭菌批次的生物监测结果；合格进入待发放，阳性则锁定召回。
-async function bioTestLabels() {
-    const data = await api("workflow/label/bio-test", {
-        method: "POST",
-        body: {
-            batchNo: value("bioBatch"),
-            pass: value("bioPass") === "true",
-            indicatorBatch: value("indicatorBatch"),
-            operatorId: "user-operator",
-            deviceCode: "WEB-BIO",
-            clientType: "WEB"
-        }
-    });
-    showNotice(`生物监测已录入：${data.status}`);
-    state.workArea = await api("workarea/bio");
-    render();
-}
-
-// 发放灭菌合格标签：生成发放单并回写批次追溯事件。
-async function distributeLabels() {
-    const data = await api("workflow/label/distribute", {
-        method: "POST",
-        body: {
-            labelNos: value("distributeLabels"),
-            deptCode: value("distributeDept"),
-            operatorId: "user-operator",
-            deviceCode: "WEB-DISTRIBUTE",
-            clientType: "WEB"
-        }
-    });
-    showNotice(`发放完成：${data.orderNo}`);
-    state.workArea = await api("workarea/distribute");
-    render();
+    showNotice("单据已更新");
+    await refresh();
 }
 
 // 新增包材：包材有效期会参与标签失效日期计算。

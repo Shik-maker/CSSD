@@ -93,6 +93,31 @@ public class BusinessService {
         return Map.of("id", rowId, "deleted", true);
     }
 
+    // 后台单据编辑入口，只允许修改单据备注等非流转字段，不改变业务状态机。
+    @Transactional
+    public Map<String, Object> updateDocument(String docType, String rowId, Map<String, Object> body) {
+        DocumentMeta meta = documentMeta(docType);
+        Map<String, Object> before = one("SELECT * FROM " + meta.tableName() + " WHERE id=?", rowId);
+        Map<String, Object> values = new LinkedHashMap<>();
+        for (String field : meta.fields()) {
+            if (body.containsKey(field)) {
+                values.put(field, body.get(field));
+            }
+        }
+        if (values.isEmpty()) {
+            return before;
+        }
+
+        String setSql = String.join(",", values.keySet().stream().map(field -> field + "=?").toList());
+        List<Object> params = new ArrayList<>(values.values());
+        params.add(rowId);
+        jdbc.update("UPDATE " + meta.tableName() + " SET " + setSql + " WHERE id=?", params.toArray());
+
+        Map<String, Object> after = one("SELECT * FROM " + meta.tableName() + " WHERE id=?", rowId);
+        audit(meta.tableName(), rowId, "UPDATE_DOCUMENT", before, after);
+        return after;
+    }
+
     // 后台工作区查询入口，按区域返回真实单据、明细和关联批次。
     public Map<String, Object> workArea(String area) {
         Map<String, Object> data = new LinkedHashMap<>();
@@ -633,6 +658,17 @@ public class BusinessService {
         };
     }
 
+    // 单据编辑白名单：Web 端只能改备注等管理字段，不能改变回收、清洗、灭菌、发放的流程动作。
+    private DocumentMeta documentMeta(String docType) {
+        return switch (docType) {
+            case "recycleOrders" -> new DocumentMeta("cssd_recycle_order", List.of("remark", "abnormal_record", "video_url"));
+            case "washRecords" -> new DocumentMeta("cssd_wash_record", List.of("remark"));
+            case "sterilizationRecords" -> new DocumentMeta("cssd_sterilization_record", List.of("remark"));
+            case "distributeOrders" -> new DocumentMeta("cssd_distribute_order", List.of("status"));
+            default -> throw new IllegalArgumentException("不支持的单据类型：" + docType);
+        };
+    }
+
     // 归一化前端提交字段，只保留白名单字段并处理 JSON 字段。
     private Map<String, Object> normalizeValues(EntityMeta meta, Map<String, Object> body) {
         Map<String, Object> values = new LinkedHashMap<>();
@@ -702,7 +738,7 @@ public class BusinessService {
     // 查询灭菌记录，灭菌工作区展示锅次、设备和结果。
     private List<Map<String, Object>> sterilizationRecords() {
         return jdbc.queryForList("""
-            SELECT sr.batch_no, sr.program_name, sr.start_time, sr.end_time, sr.package_list,
+            SELECT sr.id, sr.batch_no, sr.program_name, sr.start_time, sr.end_time, sr.package_list,
                    sr.physical_result, sr.chemical_result, sr.result, sr.need_bio_test, sr.bio_test_status, sr.remark,
                    e.equipment_code, e.equipment_name
             FROM cssd_sterilization_record sr
@@ -769,7 +805,7 @@ public class BusinessService {
     // 查询发放单，发放工作区用于核对已发放标签和科室。
     private List<Map<String, Object>> distributeOrders() {
         return jdbc.queryForList("""
-            SELECT doo.order_no, doo.distribute_time, doo.package_list, doo.status,
+            SELECT doo.id, doo.order_no, doo.distribute_time, doo.package_list, doo.status,
                    d.dept_code, d.dept_name, u.user_name operator_name
             FROM cssd_distribute_order doo
             LEFT JOIN cssd_department d ON d.id=doo.dept_id
@@ -782,7 +818,7 @@ public class BusinessService {
     // 查询清洗记录，清洗工作区用它展示设备、程序、批次和结果。
     private List<Map<String, Object>> washRecords() {
         return jdbc.queryForList("""
-            SELECT wr.batch_no, wr.program_name, wr.start_time, wr.end_time, wr.package_list, wr.result, wr.remark,
+            SELECT wr.id, wr.batch_no, wr.program_name, wr.start_time, wr.end_time, wr.package_list, wr.result, wr.remark,
                    e.equipment_code, e.equipment_name, u.user_name operator_name
             FROM cssd_wash_record wr
             JOIN cssd_equipment e ON e.id=wr.equipment_id
@@ -1086,5 +1122,9 @@ public class BusinessService {
 
     // 基础资料实体白名单描述。
     private record EntityMeta(String tableName, List<String> fields, String orderBy) {
+    }
+
+    // 单据编辑白名单描述。
+    private record DocumentMeta(String tableName, List<String> fields) {
     }
 }

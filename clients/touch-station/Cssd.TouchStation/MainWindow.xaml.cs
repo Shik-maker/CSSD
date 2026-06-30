@@ -183,15 +183,19 @@ public partial class MainWindow : Window
     // 根据不同工位生成对应请求体，确保同一个安装包可通过配置切换回收、配包、发放等模式。
     private Dictionary<string, object> BuildPayload(string packageCode, string second)
     {
-        return _config.StationCode switch
+        Dictionary<string, object> payload = _config.StationCode switch
         {
-            "recycle" => new() { ["packageCode"] = packageCode, ["basketCode"] = string.IsNullOrWhiteSpace(second) ? "BASK-01" : second, ["deviceCode"] = _config.DeviceCode },
+            "recycle" => new() { ["packageCode"] = packageCode, ["basketCode"] = string.IsNullOrWhiteSpace(second) ? "BASK-01" : second },
             "assemble" => new() { ["station"] = "assemble", ["packageCode"] = packageCode },
             "pack" => new() { ["station"] = "pack", ["packageCode"] = packageCode },
             "sterilize" => new() { ["packageCode"] = packageCode, ["equipmentCode"] = string.IsNullOrWhiteSpace(second) ? "ST-H-01" : second, ["program"] = "标准", ["needBio"] = true },
             "distribute" => new() { ["packageCode"] = packageCode, ["deptCode"] = string.IsNullOrWhiteSpace(second) ? "OR" : second },
             _ => new() { ["packageCode"] = packageCode }
         };
+        // 后端据此区分业务终端和 Web 管理端，Web 端不能直接推动业务流转。
+        payload["clientType"] = "TOUCH";
+        payload["deviceCode"] = _config.DeviceCode;
+        return payload;
     }
 
     // 返回当前工位要调用的后台接口地址。

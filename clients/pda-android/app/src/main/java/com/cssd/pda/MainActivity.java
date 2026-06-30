@@ -55,7 +55,9 @@ public class MainActivity extends Activity {
 
         TextView logo = text("CSSD PDA", 34, "#111827", true);
         logo.setGravity(Gravity.CENTER);
-        root.addView(logo);
+        logo.setPadding(0, dp(10), 0, dp(10));
+        logo.setBackground(stroke("#DCE5F2", "#FFFFFF", 18));
+        addMargin(root, logo, 0, 0, 0, 10);
         TextView subtitle = text("复用无菌器械闭环追溯系统", 18, "#475569", true);
         subtitle.setGravity(Gravity.CENTER);
         root.addView(subtitle);
@@ -177,12 +179,15 @@ public class MainActivity extends Activity {
 
         LinearLayout bottom = horizontal();
         bottom.setGravity(Gravity.CENTER);
+        bottom.setPadding(dp(8), dp(4), dp(8), dp(4));
+        bottom.setBackground(stroke("#DCE5F2", "#FFFFFF", 18));
+        bottom.setElevation(dp(2));
         bottom.addView(navText("首页", true));
         bottom.addView(navText("任务", false));
         bottom.addView(navText("扫码", false));
         bottom.addView(navText("消息", false));
         bottom.addView(navText("我的", false));
-        content.addView(bottom);
+        addMargin(content, bottom, 0, 12, 0, 0);
 
         refreshQueue();
         setContentView(scroll);
@@ -199,6 +204,8 @@ public class MainActivity extends Activity {
             JSONArray queue = readQueue();
             JSONObject item = new JSONObject();
             item.put("type", "recycle");
+            // 标记业务来源为 PDA，后台用它和 Web 管理端做权限边界区分。
+            item.put("clientType", "PDA");
             item.put("packageCode", packageCode);
             item.put("basketCode", basketInput.getText().toString().trim().toUpperCase(Locale.ROOT));
             item.put("deptCode", deptInput.getText().toString().trim().toUpperCase(Locale.ROOT));
@@ -220,6 +227,7 @@ public class MainActivity extends Activity {
                 JSONArray queue = readQueue();
                 JSONObject body = new JSONObject();
                 body.put("deviceCode", "PDA-ANDROID-01");
+                body.put("clientType", "PDA");
                 body.put("events", queue);
                 String result = postJson(SERVER_BASE + "/pda/sync", body.toString());
                 JSONObject response = new JSONObject(result);
@@ -321,10 +329,10 @@ public class MainActivity extends Activity {
         LinearLayout layout = vertical(0);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Color.WHITE);
-        bg.setCornerRadius(dp(16));
+        bg.setCornerRadius(dp(18));
         bg.setStroke(1, Color.rgb(220, 228, 240));
         layout.setBackground(bg);
-        layout.setElevation(dp(2));
+        layout.setElevation(dp(3));
         return layout;
     }
 

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @CrossOrigin
@@ -89,6 +90,13 @@ public class ApiController {
         return ApiResponse.ok(traceService.updateConfig(key, body));
     }
 
+    // 后台单据编辑：只允许修改已经产生的单据字段，不推动现场业务流转。
+    @PutMapping("/documents/{docType}/{id}")
+    public ApiResponse<Map<String, Object>> updateDocument(@PathVariable String docType, @PathVariable String id,
+                                                           @RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(businessService.updateDocument(docType, id, body));
+    }
+
     @GetMapping("/station/{station}")
     public ApiResponse<Map<String, Object>> station(@PathVariable String station) {
         return ApiResponse.ok(traceService.station(station));
@@ -102,95 +110,112 @@ public class ApiController {
 
     @PostMapping("/workflow/recycle")
     public ApiResponse<Map<String, Object>> recycle(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.recycle(body));
     }
 
     // 临床批量包回收：没有标签时先生成批次号，用批次贯穿回收、清洗、打包和后续标签。
     @PostMapping("/workflow/recycle/batch")
     public ApiResponse<Map<String, Object>> recycleBatch(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(businessService.recycleBatch(body));
     }
 
     @PostMapping("/workflow/wash/start")
     public ApiResponse<Map<String, Object>> washStart(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.washStart(body));
     }
 
     // 临床批量批次开始清洗：按批次而不是标签推动普通临床包流转。
     @PostMapping("/workflow/lot/wash/start")
     public ApiResponse<Map<String, Object>> washLotStart(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(businessService.washLotStart(body));
     }
 
     @PostMapping("/workflow/wash/finish")
     public ApiResponse<Map<String, Object>> washFinish(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.washFinish(body));
     }
 
     // 临床批量批次完成清洗：合格进入待配包，不合格退回待清洗。
     @PostMapping("/workflow/lot/wash/finish")
     public ApiResponse<Map<String, Object>> washLotFinish(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(businessService.washLotFinish(body));
     }
 
     @PostMapping("/workflow/station/complete")
     public ApiResponse<Map<String, Object>> completeStation(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.completeStation(body));
     }
 
     // 临床批量批次配包完成：记录配包人，并把批次推送到打包标签环节。
     @PostMapping("/workflow/lot/assemble")
     public ApiResponse<Map<String, Object>> assembleLot(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(businessService.assembleLot(body));
     }
 
     @PostMapping("/workflow/sterilize/start")
     public ApiResponse<Map<String, Object>> sterilizeStart(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.sterilizeStart(body));
     }
 
     // 标签开始灭菌：临床批量包打包后以标签号进入灭菌批次。
     @PostMapping("/workflow/label/sterilize/start")
     public ApiResponse<Map<String, Object>> sterilizeLabelsStart(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(businessService.sterilizeLabelsStart(body));
     }
 
     @PostMapping("/workflow/sterilize/finish")
     public ApiResponse<Map<String, Object>> sterilizeFinish(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.sterilizeFinish(body));
     }
 
     // 标签完成灭菌：合格标签进入待发放，不合格标签退回待灭菌。
     @PostMapping("/workflow/label/sterilize/finish")
     public ApiResponse<Map<String, Object>> sterilizeLabelsFinish(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(businessService.sterilizeLabelsFinish(body));
     }
 
     // 标签生物监测结果录入：合格后放行，不合格则锁定召回。
     @PostMapping("/workflow/label/bio-test")
     public ApiResponse<Map<String, Object>> bioTestLabels(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(businessService.bioTestLabels(body));
     }
 
     @PostMapping("/workflow/bio-test")
     public ApiResponse<Map<String, Object>> bioTest(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.bioTest(body));
     }
 
     @PostMapping("/workflow/distribute")
     public ApiResponse<Map<String, Object>> distribute(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.distribute(body));
     }
 
     // 标签发放：灭菌合格标签按科室生成发放单。
     @PostMapping("/workflow/label/distribute")
     public ApiResponse<Map<String, Object>> distributeLabels(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(businessService.distributeLabels(body));
     }
 
     // 打包标签打印：支持手术室一包一码，也支持临床批次生成多个标签。
     @PostMapping("/print/package-labels")
     public ApiResponse<Map<String, Object>> printPackageLabels(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(businessService.printPackageLabels(body));
     }
 
@@ -214,16 +239,19 @@ public class ApiController {
 
     @PostMapping("/borrow/apply")
     public ApiResponse<Map<String, Object>> borrowApply(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.borrowApply(body));
     }
 
     @PostMapping("/borrow/audit")
     public ApiResponse<Map<String, Object>> borrowAudit(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.borrowAudit(body));
     }
 
     @PostMapping("/borrow/distribute")
     public ApiResponse<Map<String, Object>> borrowDistribute(@RequestBody Map<String, Object> body) {
+        assertBusinessClient(body);
         return ApiResponse.ok(traceService.borrowDistribute(body));
     }
 
@@ -251,5 +279,13 @@ public class ApiController {
     @ExceptionHandler(Exception.class)
     public ApiResponse<?> handleSystemError(Exception ex) {
         return ApiResponse.fail("系统处理失败：" + ex.getMessage());
+    }
+
+    // 业务流转只允许触摸端或 PDA 调用，Web 管理端只能查看和编辑已产生单据。
+    private void assertBusinessClient(Map<String, Object> body) {
+        String clientType = String.valueOf(body.getOrDefault("clientType", "")).trim().toUpperCase();
+        if (!List.of("TOUCH", "PDA", "ANDROID").contains(clientType)) {
+            throw new IllegalArgumentException("Web端不允许执行业务操作，请在触摸端或PDA完成该流程");
+        }
     }
 }

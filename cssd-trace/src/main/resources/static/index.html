@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CSSD 消毒供应中心追溯系统</title>
-    <link rel="stylesheet" href="styles.css?v=2026070101">
+    <link rel="stylesheet" href="styles.css?v=2026070103">
 </head>
 <body>
 <div class="shell">
@@ -15,18 +15,43 @@
             <small>Traceability Platform</small>
         </div>
         <nav class="nav" id="nav">
-            <button class="nav-item active" data-page="dashboard">工作区总览</button>
-            <button class="nav-item" data-page="basic">基础信息</button>
-            <button class="nav-item" data-page="recycleWork">回收工作区</button>
-            <button class="nav-item" data-page="washWork">清洗工作区</button>
-            <button class="nav-item" data-page="assembleWork">配包工作区</button>
-            <button class="nav-item" data-page="print">打印模板</button>
-            <button class="nav-item" data-page="sterilizeWork">灭菌工作区</button>
-            <button class="nav-item" data-page="bioWork">生物监测工作区</button>
-            <button class="nav-item" data-page="distributeWork">发放工作区</button>
-            <button class="nav-item" data-page="config">参数配置</button>
-            <button class="nav-item" data-page="trace">追溯查询</button>
-            <button class="nav-item" data-page="report">统计报表</button>
+            <div class="nav-section">
+                <button class="nav-item active" data-page="dashboard">数据总览</button>
+                <button class="nav-item" data-page="trace">追溯查询</button>
+                <button class="nav-item" data-page="recycleWork">回收单管理</button>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-group-title">统计报表</div>
+                <button class="nav-item child" data-page="report">工作量统计</button>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-group-title">基础信息</div>
+                <button class="nav-item child" data-page="packageManage">器械包管理</button>
+                <button class="nav-item child" data-page="packagingManage">包装管理</button>
+                <button class="nav-item child" data-page="instrumentManage">器械管理</button>
+                <button class="nav-item child" data-page="equipmentManage">设备管理</button>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-group-title">单据管理</div>
+                <button class="nav-item child" data-page="recycleWork">回收单</button>
+                <button class="nav-item child" data-page="washWork">清洗记录</button>
+                <button class="nav-item child" data-page="assembleWork">配包记录</button>
+                <button class="nav-item child" data-page="print">打包标签</button>
+                <button class="nav-item child" data-page="sterilizeWork">灭菌记录</button>
+                <button class="nav-item child" data-page="bioWork">生物监测记录</button>
+                <button class="nav-item child" data-page="distributeWork">发放单</button>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-group-title">系统管理</div>
+                <button class="nav-item child" data-page="roleManage">角色管理</button>
+                <button class="nav-item child" data-page="userManage">人员管理</button>
+                <button class="nav-item child" data-page="departmentManage">科室管理</button>
+                <button class="nav-item child" data-page="menuManage">菜单管理</button>
+            </div>
         </nav>
         <div class="side-footer">
             <span id="healthDot" class="dot"></span>
@@ -56,6 +81,6 @@
     <div class="empty">暂无数据</div>
 </template>
 
-<script src="app.js?v=2026070101"></script>
+<script src="app.js?v=2026070103"></script>
 </body>
 </html>
