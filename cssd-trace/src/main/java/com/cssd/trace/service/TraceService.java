@@ -89,7 +89,8 @@ public class TraceService {
     public Map<String, Object> basicData() {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("departments", jdbc.queryForList("SELECT * FROM cssd_department ORDER BY dept_code"));
-        data.put("users", jdbc.queryForList("SELECT work_no, user_name, role_code, user_type, status FROM cssd_user ORDER BY work_no"));
+        // 返回用户 ID 供配包、打包、审核等业务动作准确记录操作人。
+        data.put("users", jdbc.queryForList("SELECT id, work_no, user_name, role_code, user_type, status FROM cssd_user ORDER BY work_no"));
         data.put("packageTypes", jdbc.queryForList("SELECT * FROM cssd_package_type ORDER BY package_code"));
         // 后台基础信息需要直接展示包材，标签失效期由包材有效期驱动。
         data.put("packaging", jdbc.queryForList("SELECT * FROM cssd_packaging ORDER BY packaging_code"));

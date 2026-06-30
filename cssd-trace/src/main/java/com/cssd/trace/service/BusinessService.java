@@ -108,6 +108,13 @@ public class BusinessService {
                 """));
             data.put("lots", traceLots("ORDER BY tl.created_at DESC LIMIT 100"));
             data.put("baskets", jdbc.queryForList("SELECT * FROM cssd_basket ORDER BY basket_code"));
+        } else if ("wash".equals(area)) {
+            data.put("lots", traceLots("WHERE tl.current_status IN ('RECYCLED','WASHING') ORDER BY tl.updated_at DESC LIMIT 100"));
+            data.put("records", washRecords());
+            data.put("equipments", jdbc.queryForList("SELECT * FROM cssd_equipment WHERE equipment_type=1 ORDER BY equipment_code"));
+        } else if ("assemble".equals(area)) {
+            data.put("lots", traceLots("WHERE tl.current_status IN ('WASHED','ASSEMBLED') ORDER BY tl.updated_at DESC LIMIT 100"));
+            data.put("events", lotEvents("assemble"));
         } else if ("pack".equals(area)) {
             data.put("lots", traceLots("WHERE tl.current_status IN ('RECYCLED','WASHED','ASSEMBLED','PART_PACKED','PACKED') ORDER BY tl.updated_at DESC LIMIT 100"));
             data.put("labels", recentLabels());
@@ -182,6 +189,98 @@ public class BusinessService {
                 Map.of("orderNo", orderNo, "lotNo", lotNo, "quantity", quantity), "临床批量包按批次追溯");
 
         return Map.of("orderNo", orderNo, "lotNo", lotNo, "quantity", quantity, "basketCode", basketCode);
+    }
+
+    // 临床批量包开始清洗：从回收批次进入清洗中，并生成清洗记录。
+    @Transactional
+    public Map<String, Object> washLotStart(Map<String, Object> body) {
+        String lotNo = str(body, "lotNo", "").toUpperCase(Locale.ROOT);
+        String equipmentCode = str(body, "equipmentCode", "WASH-01").toUpperCase(Locale.ROOT);
+        String program = str(body, "program", "标准");
+        Map<String, Object> lot = traceLotRow(lotNo);
+        if (!"RECYCLED".equals(str(lot.get("current_status")))) {
+            throw new IllegalArgumentException("只有待清洗批次可以开始清洗");
+        }
+        Map<String, Object> equipment = one("SELECT * FROM cssd_equipment WHERE equipment_code=?", equipmentCode);
+        if (num(equipment.get("equipment_type")) != 1) {
+            throw new IllegalArgumentException("请选择清洗设备");
+        }
+
+        String batchNo = nextNo("WASH");
+        jdbc.update("""
+            INSERT INTO cssd_wash_record
+            (id, batch_no, equipment_id, program_name, wash_type, operator_id, basket_list, package_list, param_data)
+            VALUES(?,?,?,?,?,?,?,?,?)
+            """, id(), batchNo, equipment.get("id"), program, 1, str(body, "operatorId", "user-operator"),
+                json(List.of(lot.get("basket_code"))), json(List.of(lotNo)),
+                json(Map.of("source", "TRACE_LOT", "lotNo", lotNo, "program", program)));
+        jdbc.update("UPDATE cssd_equipment SET status=2 WHERE id=?", equipment.get("id"));
+        jdbc.update("UPDATE cssd_trace_lot SET current_status='WASHING', updated_at=NOW() WHERE id=?", lot.get("id"));
+        if (!str(lot.get("basket_code")).isBlank()) {
+            jdbc.update("UPDATE cssd_basket SET status='WASHING', current_batch_no=? WHERE basket_code=?", batchNo, lot.get("basket_code"));
+        }
+
+        lotEvent(str(lot.get("id")), lotNo, "开始清洗", "wash", 0, str(body, "operatorId", "user-operator"),
+                str(body, "deviceCode", "TOUCH-WASH"), Map.of("batchNo", batchNo, "equipmentCode", equipmentCode, "program", program));
+        operation("TRACE_LOT", str(lot.get("id")), lotNo, "WASH_START", str(body, "operatorId", "user-operator"),
+                str(body, "clientType", "TOUCH"), str(body, "deviceCode", "TOUCH-WASH"), lot,
+                Map.of("batchNo", batchNo, "status", "WASHING"), "批次进入清洗中");
+        return Map.of("lotNo", lotNo, "batchNo", batchNo, "status", "WASHING");
+    }
+
+    // 临床批量包完成清洗：合格进入待配包，不合格退回待清洗。
+    @Transactional
+    public Map<String, Object> washLotFinish(Map<String, Object> body) {
+        String batchNo = str(body, "batchNo", "").toUpperCase(Locale.ROOT);
+        boolean pass = bool(body, "pass", true);
+        Map<String, Object> record = one("SELECT * FROM cssd_wash_record WHERE batch_no=?", batchNo);
+        String lotNo = firstJsonString(record.get("package_list"));
+        Map<String, Object> lot = traceLotRow(lotNo);
+        if (!"WASHING".equals(str(lot.get("current_status")))) {
+            throw new IllegalArgumentException("该批次当前不在清洗中");
+        }
+
+        String nextStatus = pass ? "WASHED" : "RECYCLED";
+        jdbc.update("""
+            UPDATE cssd_wash_record
+            SET end_time=NOW(), result=?, remark=?
+            WHERE batch_no=?
+            """, pass ? 1 : 2, str(body, "remark", pass ? "清洗合格" : "清洗不合格，退回待清洗"), batchNo);
+        jdbc.update("UPDATE cssd_equipment SET status=1 WHERE id=?", record.get("equipment_id"));
+        jdbc.update("UPDATE cssd_trace_lot SET current_status=?, updated_at=NOW() WHERE id=?", nextStatus, lot.get("id"));
+        if (!str(lot.get("basket_code")).isBlank()) {
+            jdbc.update("UPDATE cssd_basket SET status=?, current_batch_no=?, package_list=? WHERE basket_code=?",
+                    pass ? "IDLE" : "WAIT_WASH", pass ? null : lot.get("source_order_no"),
+                    pass ? "[]" : json(List.of(lotNo)), lot.get("basket_code"));
+        }
+
+        lotEvent(str(lot.get("id")), lotNo, pass ? "清洗合格出锅" : "清洗不合格退回", "wash", 0,
+                str(body, "operatorId", "user-operator"), str(body, "deviceCode", "TOUCH-WASH"),
+                Map.of("batchNo", batchNo, "result", pass ? "PASS" : "FAIL", "nextStatus", nextStatus));
+        operation("TRACE_LOT", str(lot.get("id")), lotNo, "WASH_FINISH", str(body, "operatorId", "user-operator"),
+                str(body, "clientType", "TOUCH"), str(body, "deviceCode", "TOUCH-WASH"), lot,
+                Map.of("batchNo", batchNo, "status", nextStatus, "pass", pass), "批次清洗完成");
+        return Map.of("lotNo", lotNo, "batchNo", batchNo, "status", nextStatus, "pass", pass);
+    }
+
+    // 临床批量包配包完成：记录配包人和配包事件，后续打包标签会读取这个配包人。
+    @Transactional
+    public Map<String, Object> assembleLot(Map<String, Object> body) {
+        String lotNo = str(body, "lotNo", "").toUpperCase(Locale.ROOT);
+        Map<String, Object> lot = traceLotRow(lotNo);
+        if (!"WASHED".equals(str(lot.get("current_status")))) {
+            throw new IllegalArgumentException("只有清洗合格批次可以配包");
+        }
+
+        String assemblerId = str(body, "assemblerId", str(body, "operatorId", "user-operator"));
+        jdbc.update("UPDATE cssd_trace_lot SET current_status='ASSEMBLED', updated_at=NOW() WHERE id=?", lot.get("id"));
+        lotEvent(str(lot.get("id")), lotNo, "配包完成", "assemble", 0, assemblerId,
+                str(body, "deviceCode", "TOUCH-ASSEMBLE"),
+                Map.of("assemblerId", assemblerId, "assemblerName", userName(assemblerId), "video", "已留痕"));
+        operation("TRACE_LOT", str(lot.get("id")), lotNo, "ASSEMBLE_FINISH", assemblerId,
+                str(body, "clientType", "TOUCH"), str(body, "deviceCode", "TOUCH-ASSEMBLE"), lot,
+                Map.of("status", "ASSEMBLED", "assemblerId", assemblerId), "批次配包完成，进入待打包");
+        return Map.of("lotNo", lotNo, "status", "ASSEMBLED", "assemblerName", userName(assemblerId));
     }
 
     // 打包标签生成入口：临床批量包按来源批次生成标签，手术室包按唯一包码生成标签。
@@ -277,14 +376,20 @@ public class BusinessService {
             JOIN cssd_package_type pt ON pt.id=tl.package_type_id
             WHERE tl.lot_no=?
             """, lotNo.toUpperCase(Locale.ROOT));
+        if (!List.of("ASSEMBLED", "PART_PACKED").contains(str(lot.get("current_status")))) {
+            throw new IllegalArgumentException("批次必须配包完成后才能打印打包标签");
+        }
         int remaining = num(lot.get("remaining_qty"));
         if (quantity > remaining) {
             throw new IllegalArgumentException("打印数量不能超过批次剩余数量");
         }
 
+        String assemblerId = str(body, "assemblerId", latestLotOperator(lotNo.toUpperCase(Locale.ROOT), "assemble", "user-operator"));
+        Map<String, Object> printBody = new LinkedHashMap<>(body);
+        printBody.put("assemblerId", assemblerId);
         List<String> labels = new ArrayList<>();
         for (int i = 0; i < quantity; i++) {
-            labels.add(insertPackageLabel(lot, null, body));
+            labels.add(insertPackageLabel(lot, null, printBody));
         }
 
         int newRemaining = remaining - quantity;
@@ -429,6 +534,65 @@ public class BusinessService {
             """);
     }
 
+    // 查询清洗记录，清洗工作区用它展示设备、程序、批次和结果。
+    private List<Map<String, Object>> washRecords() {
+        return jdbc.queryForList("""
+            SELECT wr.batch_no, wr.program_name, wr.start_time, wr.end_time, wr.package_list, wr.result, wr.remark,
+                   e.equipment_code, e.equipment_name, u.user_name operator_name
+            FROM cssd_wash_record wr
+            JOIN cssd_equipment e ON e.id=wr.equipment_id
+            LEFT JOIN cssd_user u ON u.id=wr.operator_id
+            ORDER BY wr.start_time DESC
+            LIMIT 100
+            """);
+    }
+
+    // 查询指定工位的批次事件，配包工作区用它展示谁完成了配包。
+    private List<Map<String, Object>> lotEvents(String station) {
+        return jdbc.queryForList("""
+            SELECT le.*, u.user_name operator_name
+            FROM cssd_trace_lot_event le
+            LEFT JOIN cssd_user u ON u.id=le.operator_id
+            WHERE le.station=?
+            ORDER BY le.occurred_at DESC
+            LIMIT 100
+            """, station);
+    }
+
+    // 查询批次主数据，所有批次流转动作统一从这里取当前状态。
+    private Map<String, Object> traceLotRow(String lotNo) {
+        return one("""
+            SELECT tl.*, pt.package_code, pt.package_name, pt.instrument_list, pt.validity_days, pt.packaging_id, pt.id package_type_id
+            FROM cssd_trace_lot tl
+            JOIN cssd_package_type pt ON pt.id=tl.package_type_id
+            WHERE tl.lot_no=?
+            """, lotNo);
+    }
+
+    // 从 JSON 数组字段里读取第一个字符串，用于从清洗记录反查本次清洗的批次号。
+    private String firstJsonString(Object value) {
+        List<String> rows = jsonStringList(value);
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("清洗记录缺少批次号");
+        }
+        return rows.get(0);
+    }
+
+    // 查询批次某个工位最近一次操作人，打包标签上的配包人需要来自配包环节。
+    private String latestLotOperator(String lotNo, String station, String fallback) {
+        try {
+            return jdbc.queryForObject("""
+                SELECT operator_id
+                FROM cssd_trace_lot_event
+                WHERE lot_no=? AND station=? AND operator_id IS NOT NULL
+                ORDER BY occurred_at DESC
+                LIMIT 1
+                """, String.class, lotNo, station);
+        } catch (EmptyResultDataAccessException ex) {
+            return fallback;
+        }
+    }
+
     // 写入临床批次事件，批次在生成标签前的每一步都靠这里留痕。
     private void lotEvent(String lotId, String lotNo, String eventType, String station, int qtyDelta,
                           String operatorId, String deviceCode, Map<String, Object> payload) {
@@ -504,6 +668,18 @@ public class BusinessService {
                     .toList());
         } catch (Exception ex) {
             return instrumentList.toString();
+        }
+    }
+
+    // 将 JSON 字符串数组转成 Java 列表，清洗记录中的批次清单复用这个解析。
+    private List<String> jsonStringList(Object value) {
+        if (value == null || value.toString().isBlank()) {
+            return new ArrayList<>();
+        }
+        try {
+            return objectMapper.readValue(value.toString(), new TypeReference<List<String>>() {});
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("JSON数组解析失败：" + ex.getMessage());
         }
     }
 

@@ -13,6 +13,8 @@ const pageTitles = {
     dashboard: "工作区总览",
     basic: "基础信息",
     recycleWork: "回收工作区",
+    washWork: "清洗工作区",
+    assembleWork: "配包工作区",
     print: "打印模板",
     config: "参数配置",
     trace: "追溯查询",
@@ -65,6 +67,14 @@ async function refresh() {
     if (state.page === "recycleWork") {
         state.basic = await api("basic");
         state.workArea = await api("workarea/recycle");
+    }
+    if (state.page === "washWork") {
+        state.basic = await api("basic");
+        state.workArea = await api("workarea/wash");
+    }
+    if (state.page === "assembleWork") {
+        state.basic = await api("basic");
+        state.workArea = await api("workarea/assemble");
     }
     if (state.page === "print") {
         state.basic = await api("basic");
@@ -122,6 +132,8 @@ function render() {
     if (state.page === "dashboard") content.innerHTML = renderDashboard();
     if (state.page === "basic") content.innerHTML = renderBasic();
     if (state.page === "recycleWork") content.innerHTML = renderRecycleWork();
+    if (state.page === "washWork") content.innerHTML = renderWashWork();
+    if (state.page === "assembleWork") content.innerHTML = renderAssembleWork();
     if (state.page === "print") content.innerHTML = renderPrint();
     if (state.page === "config") content.innerHTML = renderConfig();
     if (state.page === "trace") content.innerHTML = renderTrace();
@@ -323,6 +335,96 @@ function renderRecycleWork() {
     `;
 }
 
+// 渲染清洗工作区：临床批量包按批次进入清洗设备，并在完成后推送到配包区。
+function renderWashWork() {
+    const data = state.workArea || {};
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>批次开始清洗</h2><span class="tag amber">待清洗批次来自回收工作区</span></div>
+            <div class="panel-body">
+                <div class="form-row">
+                    <label>待清洗批次<select id="washLot">${lotOptionsByStatus(["RECYCLED"])}</select></label>
+                    <label>清洗设备<select id="washEquipment">${equipmentOptions()}</select></label>
+                    <label>清洗程序<input id="washProgram" value="标准"></label>
+                    <button class="primary" id="washLotStartBtn">开始清洗</button>
+                </div>
+            </div>
+        </section>
+        <section class="panel">
+            <div class="panel-head"><h2>批次完成清洗</h2><span class="tag green">合格后进入配包区</span></div>
+            <div class="panel-body">
+                <div class="form-row">
+                    <label>清洗批次<select id="washBatch">${washBatchOptions()}</select></label>
+                    <label>判定结果<select id="washPass"><option value="true">合格</option><option value="false">不合格退回</option></select></label>
+                    <label>备注<input id="washRemark" value="清洗合格"></label>
+                    <button class="primary" id="washLotFinishBtn">完成清洗</button>
+                </div>
+            </div>
+        </section>
+        <div class="grid cols-2">
+            <section class="panel">
+                <div class="panel-head"><h2>清洗批次</h2></div>
+                <div class="panel-body">${table(data.lots || [], [
+                    ["lot_no", "批次号"],
+                    ["package_name", "包名称"],
+                    ["dept_name", "来源科室"],
+                    ["current_status", "状态", v => statusTag(v)],
+                    ["basket_code", "筐"]
+                ])}</div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2>清洗记录</h2></div>
+                <div class="panel-body">${table(data.records || [], [
+                    ["batch_no", "清洗批号"],
+                    ["equipment_name", "设备"],
+                    ["program_name", "程序"],
+                    ["package_list", "批次清单"],
+                    ["result", "结果", v => v === null || v === undefined ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")]
+                ])}</div>
+            </section>
+        </div>
+    `;
+}
+
+// 渲染配包工作区：清洗合格批次完成配包后进入打包/打印区。
+function renderAssembleWork() {
+    const data = state.workArea || {};
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>批次配包</h2><span class="tag green">配包人会写入后续标签</span></div>
+            <div class="panel-body">
+                <div class="form-row">
+                    <label>待配包批次<select id="assembleLot">${lotOptionsByStatus(["WASHED"])}</select></label>
+                    <label>配包人<select id="assemblerUser">${userOptions()}</select></label>
+                    <button class="primary" id="assembleLotBtn">完成配包</button>
+                </div>
+            </div>
+        </section>
+        <div class="grid cols-2">
+            <section class="panel">
+                <div class="panel-head"><h2>待配包/已配包批次</h2></div>
+                <div class="panel-body">${table(data.lots || [], [
+                    ["lot_no", "批次号"],
+                    ["package_name", "包名称"],
+                    ["dept_name", "来源科室"],
+                    ["current_status", "状态", v => statusTag(v)],
+                    ["remaining_qty", "数量"]
+                ])}</div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2>配包留痕</h2></div>
+                <div class="panel-body">${table(data.events || [], [
+                    ["lot_no", "批次号"],
+                    ["event_type", "事件"],
+                    ["operator_name", "配包人"],
+                    ["occurred_at", "时间"],
+                    ["device_code", "设备"]
+                ])}</div>
+            </section>
+        </div>
+    `;
+}
+
 // 渲染打印模板页：管理模板，并按临床批次生成器械包标签。
 function renderPrint() {
     const data = state.workArea || {};
@@ -444,6 +546,12 @@ function bindActions() {
     if (traceLotBtn) traceLotBtn.addEventListener("click", traceLotQuery);
     const createBatchRecycleBtn = document.getElementById("createBatchRecycleBtn");
     if (createBatchRecycleBtn) createBatchRecycleBtn.addEventListener("click", createBatchRecycle);
+    const washLotStartBtn = document.getElementById("washLotStartBtn");
+    if (washLotStartBtn) washLotStartBtn.addEventListener("click", washLotStart);
+    const washLotFinishBtn = document.getElementById("washLotFinishBtn");
+    if (washLotFinishBtn) washLotFinishBtn.addEventListener("click", washLotFinish);
+    const assembleLotBtn = document.getElementById("assembleLotBtn");
+    if (assembleLotBtn) assembleLotBtn.addEventListener("click", assembleLot);
     const printLabelBtn = document.getElementById("printLabelBtn");
     if (printLabelBtn) printLabelBtn.addEventListener("click", printLabel);
     const addPackagingBtn = document.getElementById("addPackagingBtn");
@@ -524,6 +632,59 @@ async function createBatchRecycle() {
     });
     showNotice("回收单和临床批次已生成");
     state.workArea = await api("workarea/recycle");
+    render();
+}
+
+// 开始清洗临床批次：调用后端批次清洗接口并刷新清洗工作区。
+async function washLotStart() {
+    const data = await api("workflow/lot/wash/start", {
+        method: "POST",
+        body: {
+            lotNo: value("washLot"),
+            equipmentCode: value("washEquipment"),
+            program: value("washProgram") || "标准",
+            operatorId: "user-operator",
+            deviceCode: "WEB-WASH",
+            clientType: "WEB"
+        }
+    });
+    showNotice(`批次已开始清洗：${data.batchNo}`);
+    state.workArea = await api("workarea/wash");
+    render();
+}
+
+// 完成清洗临床批次：合格进入配包区，不合格退回待清洗。
+async function washLotFinish() {
+    const data = await api("workflow/lot/wash/finish", {
+        method: "POST",
+        body: {
+            batchNo: value("washBatch"),
+            pass: value("washPass") === "true",
+            remark: value("washRemark"),
+            operatorId: "user-operator",
+            deviceCode: "WEB-WASH",
+            clientType: "WEB"
+        }
+    });
+    showNotice(`清洗已完成：${data.status}`);
+    state.workArea = await api("workarea/wash");
+    render();
+}
+
+// 完成配包临床批次：配包人会被后续标签打印自动继承。
+async function assembleLot() {
+    const data = await api("workflow/lot/assemble", {
+        method: "POST",
+        body: {
+            lotNo: value("assembleLot"),
+            assemblerId: value("assemblerUser"),
+            operatorId: value("assemblerUser"),
+            deviceCode: "WEB-ASSEMBLE",
+            clientType: "WEB"
+        }
+    });
+    showNotice(`配包完成：${data.assemblerName}`);
+    state.workArea = await api("workarea/assemble");
     render();
 }
 
@@ -635,11 +796,45 @@ function basketOptions() {
     return rows.map(row => `<option value="${safe(row.basket_code)}">${safe(row.basket_code)} - ${safe(row.status)}</option>`).join("");
 }
 
+// 按批次状态生成下拉选项，清洗、配包、打包各自只显示可操作数据。
+function lotOptionsByStatus(statuses) {
+    const rows = (state.workArea && state.workArea.lots) || [];
+    return rows
+        .filter(row => statuses.includes(row.current_status))
+        .map(row => `<option value="${safe(row.lot_no)}">${safe(row.lot_no)} - ${safe(row.package_name)} - ${safe(statusLabels[row.current_status]?.[0] || row.current_status)}</option>`)
+        .join("");
+}
+
+// 生成清洗设备下拉选项，清洗区只列出清洗机。
+function equipmentOptions() {
+    const rows = (state.workArea && state.workArea.equipments) || [];
+    return rows
+        .map(row => `<option value="${safe(row.equipment_code)}">${safe(row.equipment_name)}（${safe(row.equipment_code)}）</option>`)
+        .join("");
+}
+
+// 生成正在清洗的清洗批号下拉选项，用于完成清洗判定。
+function washBatchOptions() {
+    const rows = (state.workArea && state.workArea.records) || [];
+    return rows
+        .filter(row => row.result === null || row.result === undefined)
+        .map(row => `<option value="${safe(row.batch_no)}">${safe(row.batch_no)} - ${safe(row.equipment_name)}</option>`)
+        .join("");
+}
+
+// 生成人员下拉选项，配包完成时需要记录配包人。
+function userOptions() {
+    const rows = (state.basic && state.basic.users) || [];
+    return rows
+        .map(row => `<option value="${safe(row.id || row.work_no)}">${safe(row.user_name)}（${safe(row.work_no)}）</option>`)
+        .join("");
+}
+
 // 生成可打印批次下拉选项，只显示仍有剩余数量的批次。
 function lotOptions() {
     const rows = (state.workArea && state.workArea.lots) || [];
     return rows
-        .filter(row => Number(row.remaining_qty) > 0)
+        .filter(row => Number(row.remaining_qty) > 0 && ["ASSEMBLED", "PART_PACKED"].includes(row.current_status))
         .map(row => `<option value="${safe(row.lot_no)}">${safe(row.lot_no)} - ${safe(row.package_name)} - 剩余${safe(row.remaining_qty)}</option>`)
         .join("");
 }

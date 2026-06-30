@@ -116,14 +116,32 @@ public class ApiController {
         return ApiResponse.ok(traceService.washStart(body));
     }
 
+    // 临床批量批次开始清洗：按批次而不是标签推动普通临床包流转。
+    @PostMapping("/workflow/lot/wash/start")
+    public ApiResponse<Map<String, Object>> washLotStart(@RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(businessService.washLotStart(body));
+    }
+
     @PostMapping("/workflow/wash/finish")
     public ApiResponse<Map<String, Object>> washFinish(@RequestBody Map<String, Object> body) {
         return ApiResponse.ok(traceService.washFinish(body));
     }
 
+    // 临床批量批次完成清洗：合格进入待配包，不合格退回待清洗。
+    @PostMapping("/workflow/lot/wash/finish")
+    public ApiResponse<Map<String, Object>> washLotFinish(@RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(businessService.washLotFinish(body));
+    }
+
     @PostMapping("/workflow/station/complete")
     public ApiResponse<Map<String, Object>> completeStation(@RequestBody Map<String, Object> body) {
         return ApiResponse.ok(traceService.completeStation(body));
+    }
+
+    // 临床批量批次配包完成：记录配包人，并把批次推送到打包标签环节。
+    @PostMapping("/workflow/lot/assemble")
+    public ApiResponse<Map<String, Object>> assembleLot(@RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(businessService.assembleLot(body));
     }
 
     @PostMapping("/workflow/sterilize/start")
