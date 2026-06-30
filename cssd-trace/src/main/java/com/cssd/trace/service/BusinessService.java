@@ -119,6 +119,14 @@ public class BusinessService {
             data.put("lots", traceLots("WHERE tl.current_status IN ('RECYCLED','WASHED','ASSEMBLED','PART_PACKED','PACKED') ORDER BY tl.updated_at DESC LIMIT 100"));
             data.put("labels", recentLabels());
             data.put("templates", printTemplates(null));
+        } else if ("sterilize".equals(area)) {
+            data.put("labels", sterilizeLabels());
+            data.put("records", sterilizationRecords());
+            data.put("equipments", jdbc.queryForList("SELECT * FROM cssd_equipment WHERE equipment_type IN (2,3) ORDER BY equipment_type, equipment_code"));
+        } else if ("distribute".equals(area)) {
+            data.put("labels", distributeLabels());
+            data.put("orders", distributeOrders());
+            data.put("departments", jdbc.queryForList("SELECT * FROM cssd_department WHERE dept_code <> 'CSSD' ORDER BY dept_code"));
         } else {
             data.put("packages", jdbc.queryForList("""
                 SELECT pi.*, pt.package_code, pt.package_name, pt.tracking_mode, pt.package_scope
@@ -281,6 +289,100 @@ public class BusinessService {
                 str(body, "clientType", "TOUCH"), str(body, "deviceCode", "TOUCH-ASSEMBLE"), lot,
                 Map.of("status", "ASSEMBLED", "assemblerId", assemblerId), "批次配包完成，进入待打包");
         return Map.of("lotNo", lotNo, "status", "ASSEMBLED", "assemblerName", userName(assemblerId));
+    }
+
+    // 标签开始灭菌：临床批量包打包后按标签进入灭菌批次。
+    @Transactional
+    public Map<String, Object> sterilizeLabelsStart(Map<String, Object> body) {
+        List<String> labelNos = labelNos(body);
+        String equipmentCode = str(body, "equipmentCode", "ST-H-01").toUpperCase(Locale.ROOT);
+        String program = str(body, "program", "标准");
+        Map<String, Object> equipment = one("SELECT * FROM cssd_equipment WHERE equipment_code=?", equipmentCode);
+        if (!List.of(2, 3).contains(num(equipment.get("equipment_type")))) {
+            throw new IllegalArgumentException("请选择灭菌设备");
+        }
+        List<Map<String, Object>> labels = labelRows(labelNos);
+        for (Map<String, Object> label : labels) {
+            String status = str(label.get("status"));
+            if (!List.of("PRINTED", "PACKED").contains(status)) {
+                throw new IllegalArgumentException(str(label.get("label_no")) + " 当前不能进入灭菌");
+            }
+        }
+
+        String batchNo = nextNo("STER");
+        jdbc.update("""
+            INSERT INTO cssd_sterilization_record
+            (id, batch_no, equipment_id, program_name, operator_id, package_list, need_bio_test, bio_test_status, param_data)
+            VALUES(?,?,?,?,?,?,?,?,?)
+            """, id(), batchNo, equipment.get("id"), program, str(body, "operatorId", "user-operator"), json(labelNos),
+                bool(body, "needBio", false) ? 1 : 2, bool(body, "needBio", false) ? 0 : 1,
+                json(Map.of("source", "PACKAGE_LABEL", "labelNos", labelNos, "program", program)));
+        jdbc.update("UPDATE cssd_equipment SET status=2 WHERE id=?", equipment.get("id"));
+        updateLabelsStatus(labelNos, "STERILIZING");
+        writeLabelLotEvents(labels, "开始灭菌", "sterilize", 0, str(body, "operatorId", "user-operator"),
+                str(body, "deviceCode", "TOUCH-STERILIZE"), Map.of("batchNo", batchNo, "equipmentCode", equipmentCode, "labelNos", labelNos));
+        operation("STERILIZATION_RECORD", batchNo, batchNo, "STERILIZE_LABEL_START", str(body, "operatorId", "user-operator"),
+                str(body, "clientType", "TOUCH"), str(body, "deviceCode", "TOUCH-STERILIZE"), null,
+                Map.of("batchNo", batchNo, "labelNos", labelNos), "标签进入灭菌批次");
+        return Map.of("batchNo", batchNo, "labelNos", labelNos, "status", "STERILIZING");
+    }
+
+    // 标签完成灭菌：合格进入待发放，不合格退回待灭菌。
+    @Transactional
+    public Map<String, Object> sterilizeLabelsFinish(Map<String, Object> body) {
+        String batchNo = str(body, "batchNo", "").toUpperCase(Locale.ROOT);
+        boolean physicalPass = bool(body, "physicalPass", true);
+        boolean chemicalPass = bool(body, "chemicalPass", true);
+        boolean pass = physicalPass && chemicalPass;
+        Map<String, Object> record = one("SELECT * FROM cssd_sterilization_record WHERE batch_no=?", batchNo);
+        List<String> labelNos = jsonStringList(record.get("package_list"));
+        List<Map<String, Object>> labels = labelRows(labelNos);
+        String nextStatus = pass ? "STERILIZED" : "PRINTED";
+
+        jdbc.update("""
+            UPDATE cssd_sterilization_record
+            SET end_time=NOW(), physical_result=?, chemical_result=?, result=?, remark=?
+            WHERE batch_no=?
+            """, physicalPass ? 1 : 2, chemicalPass ? 1 : 2, pass ? 1 : 2,
+                str(body, "remark", pass ? "灭菌合格" : "灭菌不合格，退回待灭菌"), batchNo);
+        jdbc.update("UPDATE cssd_equipment SET status=1 WHERE id=?", record.get("equipment_id"));
+        updateLabelsStatus(labelNos, nextStatus);
+        writeLabelLotEvents(labels, pass ? "灭菌合格" : "灭菌不合格退回", "sterilize", 0,
+                str(body, "operatorId", "user-operator"), str(body, "deviceCode", "TOUCH-STERILIZE"),
+                Map.of("batchNo", batchNo, "labelNos", labelNos, "nextStatus", nextStatus));
+        operation("STERILIZATION_RECORD", batchNo, batchNo, "STERILIZE_LABEL_FINISH", str(body, "operatorId", "user-operator"),
+                str(body, "clientType", "TOUCH"), str(body, "deviceCode", "TOUCH-STERILIZE"), null,
+                Map.of("batchNo", batchNo, "labelNos", labelNos, "status", nextStatus), "标签灭菌完成");
+        return Map.of("batchNo", batchNo, "labelNos", labelNos, "status", nextStatus, "pass", pass);
+    }
+
+    // 标签发放：灭菌合格标签按科室生成发放单。
+    @Transactional
+    public Map<String, Object> distributeLabels(Map<String, Object> body) {
+        List<String> labelNos = labelNos(body);
+        String deptCode = str(body, "deptCode", "ICU").toUpperCase(Locale.ROOT);
+        Map<String, Object> dept = one("SELECT * FROM cssd_department WHERE dept_code=?", deptCode);
+        List<Map<String, Object>> labels = labelRows(labelNos);
+        for (Map<String, Object> label : labels) {
+            if (!"STERILIZED".equals(str(label.get("status")))) {
+                throw new IllegalArgumentException(str(label.get("label_no")) + " 未灭菌合格，不能发放");
+            }
+        }
+
+        String orderId = id();
+        String orderNo = nextNo("DIST");
+        jdbc.update("""
+            INSERT INTO cssd_distribute_order
+            (id, order_no, distribute_type, operator_id, dept_id, package_list, status)
+            VALUES(?,?,?,?,?,?,?)
+            """, orderId, orderNo, 1, str(body, "operatorId", "user-operator"), dept.get("id"), json(labelNos), 2);
+        updateLabelsStatus(labelNos, "DISTRIBUTED");
+        writeLabelLotEvents(labels, "发放到科室", "distribute", 0, str(body, "operatorId", "user-operator"),
+                str(body, "deviceCode", "TOUCH-DISTRIBUTE"), Map.of("orderNo", orderNo, "deptCode", deptCode, "labelNos", labelNos));
+        operation("DISTRIBUTE_ORDER", orderId, orderNo, "DISTRIBUTE_LABELS", str(body, "operatorId", "user-operator"),
+                str(body, "clientType", "TOUCH"), str(body, "deviceCode", "TOUCH-DISTRIBUTE"), null,
+                Map.of("orderNo", orderNo, "deptCode", deptCode, "labelNos", labelNos), "标签发放到科室");
+        return Map.of("orderNo", orderNo, "labelNos", labelNos, "deptName", dept.get("dept_name"));
     }
 
     // 打包标签生成入口：临床批量包按来源批次生成标签，手术室包按唯一包码生成标签。
@@ -534,6 +636,60 @@ public class BusinessService {
             """);
     }
 
+    // 查询待灭菌和灭菌中的标签，灭菌工作区使用。
+    private List<Map<String, Object>> sterilizeLabels() {
+        return jdbc.queryForList("""
+            SELECT pl.label_no, pl.package_name, pl.print_time, pl.sterilization_date, pl.expire_date, pl.status,
+                   tl.lot_no, d.dept_name source_dept_name
+            FROM cssd_package_label pl
+            LEFT JOIN cssd_trace_lot tl ON tl.id=pl.source_lot_id
+            LEFT JOIN cssd_department d ON d.id=tl.dept_id
+            WHERE pl.status IN ('PRINTED','PACKED','STERILIZING')
+            ORDER BY pl.print_time DESC
+            LIMIT 200
+            """);
+    }
+
+    // 查询灭菌记录，灭菌工作区展示锅次、设备和结果。
+    private List<Map<String, Object>> sterilizationRecords() {
+        return jdbc.queryForList("""
+            SELECT sr.batch_no, sr.program_name, sr.start_time, sr.end_time, sr.package_list,
+                   sr.physical_result, sr.chemical_result, sr.result, sr.remark,
+                   e.equipment_code, e.equipment_name
+            FROM cssd_sterilization_record sr
+            JOIN cssd_equipment e ON e.id=sr.equipment_id
+            ORDER BY sr.start_time DESC
+            LIMIT 100
+            """);
+    }
+
+    // 查询待发放和已发放标签，发放工作区使用。
+    private List<Map<String, Object>> distributeLabels() {
+        return jdbc.queryForList("""
+            SELECT pl.label_no, pl.package_name, pl.print_time, pl.sterilization_date, pl.expire_date, pl.status,
+                   tl.lot_no, d.dept_name source_dept_name
+            FROM cssd_package_label pl
+            LEFT JOIN cssd_trace_lot tl ON tl.id=pl.source_lot_id
+            LEFT JOIN cssd_department d ON d.id=tl.dept_id
+            WHERE pl.status IN ('STERILIZED','DISTRIBUTED')
+            ORDER BY pl.print_time DESC
+            LIMIT 200
+            """);
+    }
+
+    // 查询发放单，发放工作区用于核对已发放标签和科室。
+    private List<Map<String, Object>> distributeOrders() {
+        return jdbc.queryForList("""
+            SELECT doo.order_no, doo.distribute_time, doo.package_list, doo.status,
+                   d.dept_code, d.dept_name, u.user_name operator_name
+            FROM cssd_distribute_order doo
+            LEFT JOIN cssd_department d ON d.id=doo.dept_id
+            LEFT JOIN cssd_user u ON u.id=doo.operator_id
+            ORDER BY doo.distribute_time DESC
+            LIMIT 100
+            """);
+    }
+
     // 查询清洗记录，清洗工作区用它展示设备、程序、批次和结果。
     private List<Map<String, Object>> washRecords() {
         return jdbc.queryForList("""
@@ -590,6 +746,71 @@ public class BusinessService {
                 """, String.class, lotNo, station);
         } catch (EmptyResultDataAccessException ex) {
             return fallback;
+        }
+    }
+
+    // 从请求体读取标签号，支持数组和逗号分隔字符串两种形式。
+    @SuppressWarnings("unchecked")
+    private List<String> labelNos(Map<String, Object> body) {
+        Object value = body.get("labelNos");
+        List<String> rows = new ArrayList<>();
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                if (item != null && !item.toString().isBlank()) {
+                    rows.add(item.toString().trim().toUpperCase(Locale.ROOT));
+                }
+            }
+        } else if (value != null) {
+            for (String item : value.toString().split(",")) {
+                if (!item.isBlank()) {
+                    rows.add(item.trim().toUpperCase(Locale.ROOT));
+                }
+            }
+        }
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("请提供标签号");
+        }
+        return rows;
+    }
+
+    // 按标签号读取标签行，并校验每个标签都存在。
+    private List<Map<String, Object>> labelRows(List<String> labelNos) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (String labelNo : labelNos) {
+            rows.add(one("""
+                SELECT pl.*, tl.lot_no
+                FROM cssd_package_label pl
+                LEFT JOIN cssd_trace_lot tl ON tl.id=pl.source_lot_id
+                WHERE pl.label_no=?
+                """, labelNo));
+        }
+        return rows;
+    }
+
+    // 批量更新标签状态，所有标签状态变化都由明确业务动作触发。
+    private void updateLabelsStatus(List<String> labelNos, String status) {
+        jdbc.update("UPDATE cssd_package_label SET status=? WHERE label_no IN (" + placeholders(labelNos) + ")",
+                params(status, labelNos));
+    }
+
+    // 将标签业务事件回写到来源批次，保证按批次追溯时能看到灭菌和发放。
+    private void writeLabelLotEvents(List<Map<String, Object>> labels, String eventType, String station, int qtyDelta,
+                                     String operatorId, String deviceCode, Map<String, Object> payload) {
+        Map<String, List<String>> lotLabels = new LinkedHashMap<>();
+        Map<String, String> lotIds = new LinkedHashMap<>();
+        for (Map<String, Object> label : labels) {
+            String lotNo = str(label.get("lot_no"));
+            String lotId = str(label.get("source_lot_id"));
+            if (!lotNo.isBlank() && !lotId.isBlank()) {
+                lotLabels.computeIfAbsent(lotNo, key -> new ArrayList<>()).add(str(label.get("label_no")));
+                lotIds.put(lotNo, lotId);
+            }
+        }
+        for (Map.Entry<String, List<String>> entry : lotLabels.entrySet()) {
+            Map<String, Object> eventPayload = new LinkedHashMap<>(payload);
+            eventPayload.put("labelNos", entry.getValue());
+            lotEvent(lotIds.get(entry.getKey()), entry.getKey(), eventType, station, qtyDelta,
+                    operatorId, deviceCode, eventPayload);
         }
     }
 
@@ -747,6 +968,22 @@ public class BusinessService {
     // 生成业务编号。
     private String nextNo(String prefix) {
         return prefix + "-" + NO_TIME.format(LocalDateTime.now()) + "-" + UUID.randomUUID().toString().substring(0, 4).toUpperCase(Locale.ROOT);
+    }
+
+    // 生成 IN 查询占位符。
+    private String placeholders(List<?> values) {
+        if (values.isEmpty()) {
+            throw new IllegalArgumentException("缺少明细数据");
+        }
+        return String.join(",", values.stream().map(value -> "?").toList());
+    }
+
+    // 组合批量 SQL 参数。
+    private Object[] params(Object first, List<?> values) {
+        List<Object> result = new ArrayList<>();
+        result.add(first);
+        result.addAll(values);
+        return result.toArray();
     }
 
     // 将对象序列化为 JSON 字符串。

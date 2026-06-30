@@ -149,9 +149,21 @@ public class ApiController {
         return ApiResponse.ok(traceService.sterilizeStart(body));
     }
 
+    // 标签开始灭菌：临床批量包打包后以标签号进入灭菌批次。
+    @PostMapping("/workflow/label/sterilize/start")
+    public ApiResponse<Map<String, Object>> sterilizeLabelsStart(@RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(businessService.sterilizeLabelsStart(body));
+    }
+
     @PostMapping("/workflow/sterilize/finish")
     public ApiResponse<Map<String, Object>> sterilizeFinish(@RequestBody Map<String, Object> body) {
         return ApiResponse.ok(traceService.sterilizeFinish(body));
+    }
+
+    // 标签完成灭菌：合格标签进入待发放，不合格标签退回待灭菌。
+    @PostMapping("/workflow/label/sterilize/finish")
+    public ApiResponse<Map<String, Object>> sterilizeLabelsFinish(@RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(businessService.sterilizeLabelsFinish(body));
     }
 
     @PostMapping("/workflow/bio-test")
@@ -162,6 +174,12 @@ public class ApiController {
     @PostMapping("/workflow/distribute")
     public ApiResponse<Map<String, Object>> distribute(@RequestBody Map<String, Object> body) {
         return ApiResponse.ok(traceService.distribute(body));
+    }
+
+    // 标签发放：灭菌合格标签按科室生成发放单。
+    @PostMapping("/workflow/label/distribute")
+    public ApiResponse<Map<String, Object>> distributeLabels(@RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(businessService.distributeLabels(body));
     }
 
     // 打包标签打印：支持手术室一包一码，也支持临床批次生成多个标签。

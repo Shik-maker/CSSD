@@ -16,6 +16,8 @@ const pageTitles = {
     washWork: "清洗工作区",
     assembleWork: "配包工作区",
     print: "打印模板",
+    sterilizeWork: "灭菌工作区",
+    distributeWork: "发放工作区",
     config: "参数配置",
     trace: "追溯查询",
     report: "统计报表"
@@ -31,6 +33,8 @@ const statusLabels = {
     STERILIZING: ["灭菌中", "amber"],
     BIO_PENDING: ["待生物监测", "red"],
     STERILIZED: ["待发放", "green"],
+    PRINTED: ["已打印待灭菌", "amber"],
+    DISTRIBUTED: ["已发放", "blue"],
     LOCKED_RECALL: ["锁定召回", "red"]
 };
 
@@ -79,6 +83,14 @@ async function refresh() {
     if (state.page === "print") {
         state.basic = await api("basic");
         state.workArea = await api("workarea/pack");
+    }
+    if (state.page === "sterilizeWork") {
+        state.basic = await api("basic");
+        state.workArea = await api("workarea/sterilize");
+    }
+    if (state.page === "distributeWork") {
+        state.basic = await api("basic");
+        state.workArea = await api("workarea/distribute");
     }
     render();
 }
@@ -135,6 +147,8 @@ function render() {
     if (state.page === "washWork") content.innerHTML = renderWashWork();
     if (state.page === "assembleWork") content.innerHTML = renderAssembleWork();
     if (state.page === "print") content.innerHTML = renderPrint();
+    if (state.page === "sterilizeWork") content.innerHTML = renderSterilizeWork();
+    if (state.page === "distributeWork") content.innerHTML = renderDistributeWork();
     if (state.page === "config") content.innerHTML = renderConfig();
     if (state.page === "trace") content.innerHTML = renderTrace();
     if (state.page === "report") content.innerHTML = renderReport();
@@ -474,6 +488,95 @@ function renderPrint() {
     `;
 }
 
+// 渲染灭菌工作区：打包后的标签进入灭菌批次，完成后流转到发放区。
+function renderSterilizeWork() {
+    const data = state.workArea || {};
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>标签开始灭菌</h2><span class="tag amber">选择已打印标签</span></div>
+            <div class="panel-body">
+                <div class="form-row">
+                    <label>标签号<input id="sterilizeLabels" value="${defaultLabelNos(["PRINTED", "PACKED"])}"></label>
+                    <label>灭菌设备<select id="sterilizeEquipment">${sterilizeEquipmentOptions()}</select></label>
+                    <label>灭菌程序<input id="sterilizeProgram" value="标准"></label>
+                    <button class="primary" id="sterilizeStartBtn">开始灭菌</button>
+                </div>
+            </div>
+        </section>
+        <section class="panel">
+            <div class="panel-head"><h2>标签完成灭菌</h2><span class="tag green">合格后进入发放区</span></div>
+            <div class="panel-body">
+                <div class="form-row">
+                    <label>灭菌批次<select id="sterilizeBatch">${sterilizeBatchOptions()}</select></label>
+                    <label>物理监测<select id="physicalPass"><option value="true">合格</option><option value="false">不合格</option></select></label>
+                    <label>化学监测<select id="chemicalPass"><option value="true">合格</option><option value="false">不合格</option></select></label>
+                    <button class="primary" id="sterilizeFinishBtn">完成灭菌</button>
+                </div>
+            </div>
+        </section>
+        <div class="grid cols-2">
+            <section class="panel">
+                <div class="panel-head"><h2>灭菌标签</h2></div>
+                <div class="panel-body">${table(data.labels || [], [
+                    ["label_no", "标签号"],
+                    ["package_name", "包名"],
+                    ["lot_no", "来源批次"],
+                    ["status", "状态", v => statusTag(v)]
+                ])}</div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2>灭菌记录</h2></div>
+                <div class="panel-body">${table(data.records || [], [
+                    ["batch_no", "灭菌批次"],
+                    ["equipment_name", "设备"],
+                    ["program_name", "程序"],
+                    ["package_list", "标签清单"],
+                    ["result", "结果", v => v === null || v === undefined ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")]
+                ])}</div>
+            </section>
+        </div>
+    `;
+}
+
+// 渲染发放工作区：灭菌合格标签按科室生成发放单。
+function renderDistributeWork() {
+    const data = state.workArea || {};
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>标签发放</h2><span class="tag green">只能发放灭菌合格标签</span></div>
+            <div class="panel-body">
+                <div class="form-row">
+                    <label>标签号<input id="distributeLabels" value="${defaultLabelNos(["STERILIZED"])}"></label>
+                    <label>目标科室<select id="distributeDept">${distributeDeptOptions()}</select></label>
+                    <button class="primary" id="distributeBtn">发放</button>
+                </div>
+            </div>
+        </section>
+        <div class="grid cols-2">
+            <section class="panel">
+                <div class="panel-head"><h2>发放标签</h2></div>
+                <div class="panel-body">${table(data.labels || [], [
+                    ["label_no", "标签号"],
+                    ["package_name", "包名"],
+                    ["lot_no", "来源批次"],
+                    ["expire_date", "失效时间"],
+                    ["status", "状态", v => statusTag(v)]
+                ])}</div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2>发放单</h2></div>
+                <div class="panel-body">${table(data.orders || [], [
+                    ["order_no", "发放单"],
+                    ["dept_name", "科室"],
+                    ["package_list", "标签清单"],
+                    ["operator_name", "发放人"],
+                    ["distribute_time", "时间"]
+                ])}</div>
+            </section>
+        </div>
+    `;
+}
+
 function renderConfig() {
     const data = state.basic || {};
     return `
@@ -554,6 +657,12 @@ function bindActions() {
     if (assembleLotBtn) assembleLotBtn.addEventListener("click", assembleLot);
     const printLabelBtn = document.getElementById("printLabelBtn");
     if (printLabelBtn) printLabelBtn.addEventListener("click", printLabel);
+    const sterilizeStartBtn = document.getElementById("sterilizeStartBtn");
+    if (sterilizeStartBtn) sterilizeStartBtn.addEventListener("click", sterilizeStart);
+    const sterilizeFinishBtn = document.getElementById("sterilizeFinishBtn");
+    if (sterilizeFinishBtn) sterilizeFinishBtn.addEventListener("click", sterilizeFinish);
+    const distributeBtn = document.getElementById("distributeBtn");
+    if (distributeBtn) distributeBtn.addEventListener("click", distributeLabels);
     const addPackagingBtn = document.getElementById("addPackagingBtn");
     if (addPackagingBtn) addPackagingBtn.addEventListener("click", addPackaging);
     const addBasketBtn = document.getElementById("addBasketBtn");
@@ -707,6 +816,59 @@ async function printLabel() {
     render();
 }
 
+// 开始标签灭菌：将已打印标签放入灭菌批次。
+async function sterilizeStart() {
+    const data = await api("workflow/label/sterilize/start", {
+        method: "POST",
+        body: {
+            labelNos: value("sterilizeLabels"),
+            equipmentCode: value("sterilizeEquipment"),
+            program: value("sterilizeProgram") || "标准",
+            operatorId: "user-operator",
+            deviceCode: "WEB-STERILIZE",
+            clientType: "WEB"
+        }
+    });
+    showNotice(`灭菌已开始：${data.batchNo}`);
+    state.workArea = await api("workarea/sterilize");
+    render();
+}
+
+// 完成标签灭菌：物理和化学均合格后进入待发放。
+async function sterilizeFinish() {
+    const data = await api("workflow/label/sterilize/finish", {
+        method: "POST",
+        body: {
+            batchNo: value("sterilizeBatch"),
+            physicalPass: value("physicalPass") === "true",
+            chemicalPass: value("chemicalPass") === "true",
+            operatorId: "user-operator",
+            deviceCode: "WEB-STERILIZE",
+            clientType: "WEB"
+        }
+    });
+    showNotice(`灭菌完成：${data.status}`);
+    state.workArea = await api("workarea/sterilize");
+    render();
+}
+
+// 发放灭菌合格标签：生成发放单并回写批次追溯事件。
+async function distributeLabels() {
+    const data = await api("workflow/label/distribute", {
+        method: "POST",
+        body: {
+            labelNos: value("distributeLabels"),
+            deptCode: value("distributeDept"),
+            operatorId: "user-operator",
+            deviceCode: "WEB-DISTRIBUTE",
+            clientType: "WEB"
+        }
+    });
+    showNotice(`发放完成：${data.orderNo}`);
+    state.workArea = await api("workarea/distribute");
+    render();
+}
+
 // 新增包材：包材有效期会参与标签失效日期计算。
 async function addPackaging() {
     const code = `PACK-${Date.now().toString().slice(-5)}`;
@@ -846,6 +1008,41 @@ function templateOptions(type) {
         .filter(row => !type || row.template_type === type)
         .map(row => `<option value="${safe(row.id)}">${safe(row.template_name)}</option>`)
         .join("");
+}
+
+// 生成灭菌设备下拉选项。
+function sterilizeEquipmentOptions() {
+    const rows = (state.workArea && state.workArea.equipments) || [];
+    return rows
+        .map(row => `<option value="${safe(row.equipment_code)}">${safe(row.equipment_name)}（${safe(row.equipment_code)}）</option>`)
+        .join("");
+}
+
+// 生成正在灭菌的批次下拉选项，用于完成灭菌。
+function sterilizeBatchOptions() {
+    const rows = (state.workArea && state.workArea.records) || [];
+    return rows
+        .filter(row => row.result === null || row.result === undefined)
+        .map(row => `<option value="${safe(row.batch_no)}">${safe(row.batch_no)} - ${safe(row.equipment_name)}</option>`)
+        .join("");
+}
+
+// 生成发放目标科室下拉选项。
+function distributeDeptOptions() {
+    const rows = (state.workArea && state.workArea.departments) || [];
+    return rows
+        .map(row => `<option value="${safe(row.dept_code)}">${safe(row.dept_name)}</option>`)
+        .join("");
+}
+
+// 根据状态生成默认标签号文本，多个标签用逗号分隔。
+function defaultLabelNos(statuses) {
+    const rows = (state.workArea && state.workArea.labels) || [];
+    return rows
+        .filter(row => statuses.includes(row.status))
+        .slice(0, 5)
+        .map(row => row.label_no)
+        .join(",");
 }
 
 // 将追溯模式转换成后台页面可读的标签。
