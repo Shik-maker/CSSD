@@ -89,8 +89,24 @@ public class TraceService {
     public Map<String, Object> basicData() {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("departments", jdbc.queryForList("SELECT * FROM cssd_department ORDER BY dept_code"));
-        // 返回用户 ID 供配包、打包、审核等业务动作准确记录操作人。
-        data.put("users", jdbc.queryForList("SELECT id, work_no, user_name, role_code, user_type, status FROM cssd_user ORDER BY work_no"));
+        // 返回用户维护所需字段，Web 管理端只维护基础资料，不执行现场业务动作。
+        data.put("users", jdbc.queryForList("""
+            SELECT id, work_no, user_name, password_hash, dept_id, role_code, user_type, status, login_method
+            FROM cssd_user
+            ORDER BY work_no
+            """));
+        // 返回器械字典，器械包内容物可引用这些基础数据。
+        data.put("instruments", jdbc.queryForList("SELECT * FROM cssd_instrument ORDER BY instrument_code"));
+        // 返回角色、权限和授权关系，系统管理页用于配置账号权限。
+        data.put("roles", jdbc.queryForList("SELECT * FROM cssd_role ORDER BY role_code"));
+        data.put("permissions", jdbc.queryForList("SELECT * FROM cssd_permission ORDER BY sort_no, permission_code"));
+        data.put("rolePermissions", jdbc.queryForList("""
+            SELECT rp.role_id, rp.permission_id, r.role_code, p.permission_code
+            FROM cssd_role_permission rp
+            JOIN cssd_role r ON r.id=rp.role_id
+            JOIN cssd_permission p ON p.id=rp.permission_id
+            ORDER BY r.role_code, p.sort_no
+            """));
         data.put("packageTypes", jdbc.queryForList("SELECT * FROM cssd_package_type ORDER BY package_code"));
         // 后台基础信息需要直接展示包材，标签失效期由包材有效期驱动。
         data.put("packaging", jdbc.queryForList("SELECT * FROM cssd_packaging ORDER BY packaging_code"));

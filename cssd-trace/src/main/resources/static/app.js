@@ -6,7 +6,8 @@ const state = {
     user: JSON.parse(localStorage.getItem("cssdAdminUser") || "null"),
     dashboard: null,
     basic: null,
-    workArea: null
+    workArea: null,
+    filters: {}
 };
 
 const pageTitles = {
@@ -46,6 +47,233 @@ const statusLabels = {
     PRINTED: ["已打印待灭菌", "amber"],
     DISTRIBUTED: ["已发放", "blue"],
     LOCKED_RECALL: ["锁定召回", "red"]
+};
+
+const yesNoStatusOptions = [
+    ["1", "启用"],
+    ["0", "停用"]
+];
+
+const adminEntityConfigs = {
+    packageTypes: {
+        title: "器械包",
+        entity: "packageTypes",
+        rowsKey: "packageTypes",
+        columns: [
+            ["package_code", "包编码"],
+            ["package_name", "包名称"],
+            ["category", "分类"],
+            ["tracking_mode", "追溯模式", v => trackingModeTag(v)],
+            ["package_scope", "业务范围"],
+            ["validity_days", "有效期"],
+            ["status", "状态", v => Number(v) === 1 ? tag("启用", "green") : tag("停用", "red")]
+        ],
+        fields: [
+            ["package_code", "包编码", "text", "PKT-" + Date.now().toString().slice(-5)],
+            ["package_name", "包名称", "text", "新增器械包"],
+            ["category", "分类", "text", "临床包"],
+            ["tracking_mode", "追溯模式", "select", "BATCH", [["BATCH", "临床批量"], ["UNIQUE", "一包一码"]]],
+            ["package_scope", "业务范围", "select", "CLINICAL", [["CLINICAL", "临床科室"], ["OR", "手术室"]]],
+            ["sterilization_type", "灭菌方式", "select", "1", [["1", "高温"], ["2", "低温"], ["3", "无需灭菌"]]],
+            ["cleaning_type", "清洗方式", "select", "2", [["1", "手工"], ["2", "机洗"], ["3", "特殊感染"]]],
+            ["validity_days", "有效期天数", "number", "30"],
+            ["packaging_id", "包材ID", "text", "pack-paper"],
+            ["packaging_name", "包材名称", "text", "纸塑袋"],
+            ["instrument_list", "包内物JSON", "textarea", "[{\"code\":\"INS-001\",\"name\":\"持针器\",\"qty\":1}]"],
+            ["assemble_image", "配包图谱", "text", ""],
+            ["pack_image", "打包图谱", "text", ""],
+            ["status", "状态", "select", "1", yesNoStatusOptions]
+        ]
+    },
+    packaging: {
+        title: "包材",
+        entity: "packaging",
+        rowsKey: "packaging",
+        columns: [
+            ["packaging_code", "包材编码"],
+            ["packaging_name", "包材名称"],
+            ["validity_days", "有效期天数"],
+            ["status", "状态", v => Number(v) === 1 ? tag("启用", "green") : tag("停用", "red")]
+        ],
+        fields: [
+            ["packaging_code", "包材编码", "text", "PACK-" + Date.now().toString().slice(-5)],
+            ["packaging_name", "包材名称", "text", "新增包材"],
+            ["validity_days", "有效期天数", "number", "60"],
+            ["status", "状态", "select", "1", yesNoStatusOptions]
+        ]
+    },
+    instruments: {
+        title: "器械",
+        entity: "instruments",
+        rowsKey: "instruments",
+        columns: [
+            ["instrument_code", "器械编码"],
+            ["instrument_name", "器械名称"],
+            ["spec", "规格"],
+            ["category", "分类"],
+            ["unit", "单位"]
+        ],
+        fields: [
+            ["instrument_code", "器械编码", "text", "INS-" + Date.now().toString().slice(-5)],
+            ["instrument_name", "器械名称", "text", "新增器械"],
+            ["spec", "规格", "text", ""],
+            ["category", "分类", "text", "基础器械"],
+            ["unit", "单位", "text", "把"]
+        ]
+    },
+    equipments: {
+        title: "设备",
+        entity: "equipments",
+        rowsKey: "equipments",
+        columns: [
+            ["equipment_code", "设备编号"],
+            ["equipment_name", "设备名称"],
+            ["equipment_type", "类型", v => equipmentTypeText(v)],
+            ["location", "位置"],
+            ["status", "状态", v => equipmentStatus(v)]
+        ],
+        fields: [
+            ["equipment_code", "设备编号", "text", "EQ-" + Date.now().toString().slice(-5)],
+            ["equipment_name", "设备名称", "text", "新增设备"],
+            ["equipment_type", "设备类型", "select", "1", [["1", "清洗设备"], ["2", "高温灭菌"], ["3", "低温灭菌"]]],
+            ["model", "型号", "text", ""],
+            ["location", "位置", "text", "CSSD"],
+            ["status", "状态", "select", "1", [["1", "空闲"], ["2", "运行中"], ["3", "故障"], ["0", "停用"]]],
+            ["preset_programs", "预设程序", "text", "标准"],
+            ["default_bio_test", "默认生物监测", "select", "0", [["0", "不需要"], ["1", "需要"]]]
+        ]
+    },
+    baskets: {
+        title: "筐",
+        entity: "baskets",
+        rowsKey: "baskets",
+        columns: [
+            ["basket_code", "筐编码"],
+            ["status", "状态"],
+            ["current_batch_no", "当前批次"],
+            ["package_list", "绑定内容"]
+        ],
+        fields: [
+            ["basket_code", "筐编码", "text", "BASK-" + Date.now().toString().slice(-4)],
+            ["status", "状态", "select", "IDLE", [["IDLE", "空闲"], ["BOUND", "已绑定"], ["CLEANING", "清洗中"], ["DISABLED", "停用"]]],
+            ["current_batch_no", "当前批次", "text", ""],
+            ["package_list", "绑定内容JSON", "textarea", "[]"]
+        ]
+    },
+    departments: {
+        title: "科室",
+        entity: "departments",
+        rowsKey: "departments",
+        columns: [
+            ["dept_code", "科室编码"],
+            ["dept_name", "科室名称"],
+            ["dept_type", "类型"],
+            ["barcode", "条码"],
+            ["status", "状态", v => Number(v) === 1 ? tag("启用", "green") : tag("停用", "red")]
+        ],
+        fields: [
+            ["dept_code", "科室编码", "text", "DEPT-" + Date.now().toString().slice(-4)],
+            ["dept_name", "科室名称", "text", "新增科室"],
+            ["dept_type", "类型", "select", "clinical", [["clinical", "临床科室"], ["or", "手术室"], ["cssd", "消毒供应中心"]]],
+            ["barcode", "条码", "text", "DEPT-" + Date.now().toString().slice(-4)],
+            ["status", "状态", "select", "1", yesNoStatusOptions]
+        ]
+    },
+    users: {
+        title: "人员",
+        entity: "users",
+        rowsKey: "users",
+        columns: [
+            ["work_no", "工号"],
+            ["user_name", "姓名"],
+            ["dept_id", "所属科室", v => deptNameById(v)],
+            ["role_code", "角色"],
+            ["user_type", "人员类型"],
+            ["status", "状态", v => Number(v) === 1 ? tag("启用", "green") : tag("停用", "red")]
+        ],
+        fields: [
+            ["work_no", "工号", "text", "U" + Date.now().toString().slice(-5)],
+            ["user_name", "姓名", "text", "新增人员"],
+            ["password_hash", "密码", "text", "123456"],
+            ["dept_id", "所属科室", "select", () => firstDeptId(), () => departmentOptions()],
+            ["role_code", "角色", "select", "operator", [["admin", "管理员"], ["operator", "操作员"], ["quality", "质控员"], ["nurse", "科室护士"]]],
+            ["user_type", "人员类型", "select", "staff", [["staff", "院内人员"], ["external", "外部人员"]]],
+            ["status", "状态", "select", "1", yesNoStatusOptions],
+            ["login_method", "登录方式", "select", "card", [["card", "工牌/扫码"], ["password", "账号密码"]]]
+        ]
+    },
+    roles: {
+        title: "角色",
+        entity: "roles",
+        rowsKey: "roles",
+        columns: [
+            ["role_code", "角色编码"],
+            ["role_name", "角色名称"],
+            ["remark", "说明"],
+            ["status", "状态", v => Number(v) === 1 ? tag("启用", "green") : tag("停用", "red")]
+        ],
+        fields: [
+            ["role_code", "角色编码", "text", "ROLE-" + Date.now().toString().slice(-4)],
+            ["role_name", "角色名称", "text", "新增角色"],
+            ["remark", "说明", "textarea", ""],
+            ["status", "状态", "select", "1", yesNoStatusOptions]
+        ]
+    },
+    permissions: {
+        title: "权限菜单",
+        entity: "permissions",
+        rowsKey: "permissions",
+        columns: [
+            ["permission_code", "权限编码"],
+            ["permission_name", "权限名称"],
+            ["module_code", "模块"],
+            ["permission_type", "类型"],
+            ["sort_no", "排序"],
+            ["status", "状态", v => Number(v) === 1 ? tag("启用", "green") : tag("停用", "red")]
+        ],
+        fields: [
+            ["permission_code", "权限编码", "text", "perm:" + Date.now().toString().slice(-4)],
+            ["permission_name", "权限名称", "text", "新增权限"],
+            ["module_code", "模块", "text", "system"],
+            ["permission_type", "类型", "select", "MENU", [["MENU", "菜单"], ["ACTION", "操作"]]],
+            ["sort_no", "排序", "number", "100"],
+            ["status", "状态", "select", "1", yesNoStatusOptions]
+        ]
+    }
+};
+
+const documentEditConfigs = {
+    recycleOrders: {
+        title: "回收单",
+        fields: [
+            ["source_user", "来源/送包人", "text", ""],
+            ["total_count", "回收数量", "number", "0"],
+            ["basket_code", "筐号", "text", ""],
+            ["abnormal_record", "异常记录JSON", "textarea", ""],
+            ["remark", "备注", "textarea", ""],
+            ["video_url", "视频留痕地址", "text", ""]
+        ]
+    },
+    washRecords: {
+        title: "清洗记录",
+        fields: [
+            ["program_name", "清洗程序", "text", ""],
+            ["remark", "备注", "textarea", ""]
+        ]
+    },
+    sterilizationRecords: {
+        title: "灭菌记录",
+        fields: [
+            ["program_name", "灭菌程序", "text", ""],
+            ["remark", "备注", "textarea", ""]
+        ]
+    },
+    distributeOrders: {
+        title: "发放单",
+        fields: [
+            ["status", "状态", "select", "2", [["1", "待处理"], ["2", "已完成"], ["0", "作废"]]]
+        ]
+    }
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -304,21 +532,85 @@ function stageLabel(value) {
     }[value] || value;
 }
 
+function renderCrudSection(entityKey, rows, title) {
+    const config = adminEntityConfigs[entityKey];
+    const visibleRows = filterRows(`crud-${entityKey}`, rows, config.columns.map(col => col[0]));
+    return `
+        <section class="panel">
+            <div class="panel-head">
+                <h2>${safe(title || config.title + "管理")}</h2>
+                <div class="panel-actions">
+                    ${filterInput(`crud-${entityKey}`, "筛选编码/名称/状态")}
+                    <button class="primary crud-add" data-entity="${entityKey}">新增</button>
+                </div>
+            </div>
+            <div class="panel-body">${table(visibleRows, [
+                ...config.columns,
+                ["id", "操作", (v, row) => renderCrudActions(entityKey, row)]
+            ])}</div>
+        </section>
+    `;
+}
+
+function renderCrudActions(entityKey, row) {
+    const encoded = encodeRow(row);
+    return `
+        <div class="table-actions">
+            <button class="ghost crud-edit" data-entity="${entityKey}" data-row="${encoded}">编辑</button>
+            <button class="ghost danger crud-delete" data-entity="${entityKey}" data-id="${safe(row.id)}">停用</button>
+        </div>
+    `;
+}
+
+function filterInput(key, placeholder) {
+    return `<input class="compact-input data-filter" data-filter="${safe(key)}" value="${safe(state.filters[key] || "")}" placeholder="${safe(placeholder)}">`;
+}
+
+function filterRows(key, rows, fields) {
+    const text = (state.filters[key] || "").trim().toLowerCase();
+    if (!text) return rows || [];
+    return (rows || []).filter(row => fields.some(field => String(row[field] ?? "").toLowerCase().includes(text)));
+}
+
+function encodeRow(row) {
+    return safe(btoa(unescape(encodeURIComponent(JSON.stringify(row)))));
+}
+
+function decodeRow(value) {
+    return JSON.parse(decodeURIComponent(escape(atob(value))));
+}
+
+function packageInstrumentRows(packageTypes) {
+    return (packageTypes || []).flatMap(pkg => {
+        const instruments = normalizeList(pkg.instrument_list);
+        return instruments.map(item => ({
+            package_code: pkg.package_code,
+            package_name: pkg.package_name,
+            instrument_code: item.code,
+            instrument_name: item.name,
+            qty: item.qty
+        }));
+    });
+}
+
+function deptNameById(deptId) {
+    const rows = (state.basic && state.basic.departments) || [];
+    return rows.find(row => row.id === deptId)?.dept_name || deptId || "";
+}
+
+function firstDeptId() {
+    return ((state.basic && state.basic.departments) || [])[0]?.id || "";
+}
+
+function departmentOptions() {
+    return ((state.basic && state.basic.departments) || []).map(row => [row.id, row.dept_name]);
+}
+
 function renderBasic() {
     const data = state.basic || {};
     return `
         <div class="grid cols-2">
-            <section class="panel">
-                <div class="panel-head"><h2>器械包管理</h2><button class="ghost" id="addClinicalPackageBtn">新增临床包示例</button></div>
-                <div class="panel-body">${table(data.packageTypes || [], [
-                    ["package_code", "包编码"],
-                    ["package_name", "包名称"],
-                    ["category", "分类"],
-                    ["tracking_mode", "追溯模式", v => trackingModeTag(v)],
-                    ["package_scope", "业务范围"],
-                    ["validity_days", "有效期"]
-                ])}</div>
-            </section>
+            ${renderCrudSection("packageTypes", data.packageTypes || [])}
             <section class="panel">
                 <div class="panel-head"><h2>器械实例状态</h2></div>
                 <div class="panel-body">${table(data.packages || [], [
@@ -330,45 +622,14 @@ function renderBasic() {
             </section>
         </div>
         <div class="grid cols-2">
-            <section class="panel">
-                <div class="panel-head"><h2>包材管理</h2><button class="ghost" id="addPackagingBtn">新增包材</button></div>
-                <div class="panel-body">${table(data.packaging || [], [
-                    ["packaging_code", "包材编码"],
-                    ["packaging_name", "包材名称"],
-                    ["validity_days", "有效期天数"],
-                    ["status", "状态", v => Number(v) === 1 ? tag("启用", "green") : tag("停用", "red")]
-                ])}</div>
-            </section>
-            <section class="panel">
-                <div class="panel-head"><h2>筐管理</h2><button class="ghost" id="addBasketBtn">新增筐</button></div>
-                <div class="panel-body">${table(data.baskets || [], [
-                    ["basket_code", "筐编码"],
-                    ["status", "状态"],
-                    ["current_batch_no", "当前批次"],
-                    ["package_list", "绑定内容"]
-                ])}</div>
-            </section>
+            ${renderCrudSection("packaging", data.packaging || [])}
+            ${renderCrudSection("baskets", data.baskets || [])}
         </div>
         <div class="grid cols-2">
-            <section class="panel">
-                <div class="panel-head"><h2>科室管理</h2></div>
-                <div class="panel-body">${table(data.departments || [], [
-                    ["dept_code", "科室编码"],
-                    ["dept_name", "科室名称"],
-                    ["dept_type", "类型"],
-                    ["barcode", "条码"]
-                ])}</div>
-            </section>
-            <section class="panel">
-                <div class="panel-head"><h2>人员与角色</h2></div>
-                <div class="panel-body">${table(data.users || [], [
-                    ["work_no", "工号"],
-                    ["user_name", "姓名"],
-                    ["role_code", "角色"],
-                    ["user_type", "人员类型"]
-                ])}</div>
-            </section>
+            ${renderCrudSection("departments", data.departments || [])}
+            ${renderCrudSection("users", data.users || [])}
         </div>
+        ${renderCrudSection("instruments", data.instruments || [])}
         <section class="panel">
             <div class="panel-head"><h2>临床批次追溯账本</h2><span class="tag blue">普通临床包标签生成前按批次追溯</span></div>
             <div class="panel-body">${table(data.traceLots || [], [
@@ -392,19 +653,9 @@ function renderPackageManage() {
                 <h2>器械包管理</h2>
                 <p class="subtle">维护器械包编码、追溯模式、业务范围和有效期，作为后续回收、清洗、配包和发放的基础数据。</p>
             </div>
-            <button class="primary" id="addClinicalPackageBtn">新增临床包示例</button>
+            <button class="primary crud-add" data-entity="packageTypes">新增器械包</button>
         </section>
-        <section class="panel">
-            <div class="panel-head"><h2>器械包目录</h2><span class="tag blue">基础主数据</span></div>
-            <div class="panel-body">${table(data.packageTypes || [], [
-                ["package_code", "包编码"],
-                ["package_name", "包名称"],
-                ["category", "分类"],
-                ["tracking_mode", "追溯模式", v => trackingModeTag(v)],
-                ["package_scope", "业务范围"],
-                ["validity_days", "有效期"]
-            ])}</div>
-        </section>
+        ${renderCrudSection("packageTypes", data.packageTypes || [], "器械包目录")}
         <section class="panel">
             <div class="panel-head"><h2>器械实例状态</h2><span class="tag green">库存状态</span></div>
             <div class="panel-body">${table(data.packages || [], [
@@ -421,43 +672,18 @@ function renderPackageManage() {
 function renderPackagingManage() {
     const data = state.basic || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>包装管理</h2><button class="ghost" id="addPackagingBtn">新增包材</button></div>
-            <div class="panel-body">${table(data.packaging || [], [
-                ["packaging_code", "包材编码"],
-                ["packaging_name", "包材名称"],
-                ["validity_days", "有效期天数"],
-                ["status", "状态", v => Number(v) === 1 ? tag("启用", "green") : tag("停用", "red")]
-            ])}</div>
-        </section>
-        <section class="panel">
-            <div class="panel-head"><h2>筐管理</h2><button class="ghost" id="addBasketBtn">新增筐</button></div>
-            <div class="panel-body">${table(data.baskets || [], [
-                ["basket_code", "筐编码"],
-                ["status", "状态"],
-                ["current_batch_no", "当前批次"],
-                ["package_list", "绑定内容"]
-            ])}</div>
-        </section>
+        ${renderCrudSection("packaging", data.packaging || [], "包装管理")}
+        ${renderCrudSection("baskets", data.baskets || [], "筐管理")}
     `;
 }
 
 function renderInstrumentManage() {
     const data = state.basic || {};
-    const rows = (data.packageTypes || []).flatMap(pkg => {
-        const instruments = normalizeList(pkg.instrument_list);
-        return instruments.map(item => ({
-            package_code: pkg.package_code,
-            package_name: pkg.package_name,
-            instrument_code: item.code,
-            instrument_name: item.name,
-            qty: item.qty
-        }));
-    });
     return `
+        ${renderCrudSection("instruments", data.instruments || [], "器械字典")}
         <section class="panel">
-            <div class="panel-head"><h2>器械管理</h2><span class="tag blue">来自器械包清单</span></div>
-            <div class="panel-body">${table(rows, [
+            <div class="panel-head"><h2>包内物引用视图</h2><span class="tag blue">来自器械包清单</span></div>
+            <div class="panel-body">${table(packageInstrumentRows(data.packageTypes || []), [
                 ["instrument_code", "器械编码"],
                 ["instrument_name", "器械名称"],
                 ["qty", "数量"],
@@ -483,16 +709,9 @@ function normalizeList(value) {
 }
 
 function renderEquipmentManage() {
-    const data = state.dashboard || {};
+    const data = state.basic || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>设备管理</h2><span class="tag green">运行状态</span></div>
-            <div class="panel-body">${table(data.equipment || [], [
-                ["equipment_code", "设备编号"],
-                ["equipment_name", "设备名称"],
-                ["status", "状态", v => equipmentStatus(v)]
-            ])}</div>
-        </section>
+        ${renderCrudSection("equipments", data.equipments || [], "设备管理")}
     `;
 }
 
@@ -531,48 +750,23 @@ function renderDepartmentApply() {
 
 function renderRoleManage() {
     const data = state.basic || {};
-    const rows = [...new Set((data.users || []).map(row => row.role_code).filter(Boolean))].map(code => ({
-        role_code: code,
-        user_count: (data.users || []).filter(row => row.role_code === code).length
-    }));
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>角色管理</h2><span class="tag blue">按现有人员角色汇总</span></div>
-            <div class="panel-body">${table(rows, [
-                ["role_code", "角色编码"],
-                ["user_count", "关联人员数"]
-            ])}</div>
-        </section>
+        ${renderCrudSection("roles", data.roles || [], "角色管理")}
+        ${renderRolePermissionMatrix(data)}
     `;
 }
 
 function renderUserManage() {
     const data = state.basic || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>人员管理</h2><span class="tag green">账号与岗位</span></div>
-            <div class="panel-body">${table(data.users || [], [
-                ["work_no", "工号"],
-                ["user_name", "姓名"],
-                ["role_code", "角色"],
-                ["user_type", "人员类型"]
-            ])}</div>
-        </section>
+        ${renderCrudSection("users", data.users || [], "人员管理")}
     `;
 }
 
 function renderDepartmentManage() {
     const data = state.basic || {};
     return `
-        <section class="panel">
-            <div class="panel-head"><h2>科室管理</h2><span class="tag blue">组织基础数据</span></div>
-            <div class="panel-body">${table(data.departments || [], [
-                ["dept_code", "科室编码"],
-                ["dept_name", "科室名称"],
-                ["dept_type", "类型"],
-                ["barcode", "条码"]
-            ])}</div>
-        </section>
+        ${renderCrudSection("departments", data.departments || [], "科室管理")}
     `;
 }
 
@@ -586,6 +780,7 @@ function renderMenuManage() {
         ["系统管理", "角色管理 / 人员管理 / 科室管理 / 菜单管理", "system"]
     ].map(row => ({ group: row[0], menu: row[1], page: row[2] }));
     return `
+        ${renderCrudSection("permissions", (state.basic && state.basic.permissions) || [], "权限菜单维护")}
         <section class="panel">
             <div class="panel-head"><h2>菜单管理</h2><span class="tag amber">前端菜单结构</span></div>
             <div class="panel-body">${table(rows, [
@@ -593,6 +788,50 @@ function renderMenuManage() {
                 ["menu", "二级菜单"],
                 ["page", "页面标识"]
             ])}</div>
+        </section>
+    `;
+}
+
+function renderRolePermissionMatrix(data) {
+    const permissions = data.permissions || [];
+    const grouped = permissions.reduce((map, permission) => {
+        const moduleCode = permission.module_code || "other";
+        map[moduleCode] = map[moduleCode] || [];
+        map[moduleCode].push(permission);
+        return map;
+    }, {});
+    return `
+        <section class="panel">
+            <div class="panel-head"><h2>角色权限配置</h2><span class="tag blue">勾选后保存</span></div>
+            <div class="panel-body role-permission-board">
+                ${(data.roles || []).map(role => {
+                    const owned = new Set((data.rolePermissions || [])
+                        .filter(row => row.role_id === role.id)
+                        .map(row => row.permission_id));
+                    return `
+                        <div class="role-permission-card">
+                            <div class="role-permission-head">
+                                <strong>${safe(role.role_name)}</strong>
+                                <span>${safe(role.role_code)}</span>
+                            </div>
+                            ${Object.entries(grouped).map(([moduleCode, rows]) => `
+                                <div class="permission-group">
+                                    <b>${safe(moduleCode)}</b>
+                                    <div class="permission-options">
+                                        ${rows.map(permission => `
+                                            <label class="check-line">
+                                                <input type="checkbox" class="role-permission-check" data-role-id="${safe(role.id)}" value="${safe(permission.id)}" ${owned.has(permission.id) ? "checked" : ""}>
+                                                <span>${safe(permission.permission_name)}</span>
+                                            </label>
+                                        `).join("")}
+                                    </div>
+                                </div>
+                            `).join("")}
+                            <button class="primary save-role-permissions" data-role-id="${safe(role.id)}">保存权限</button>
+                        </div>
+                    `;
+                }).join("") || document.getElementById("emptyTpl").innerHTML}
+            </div>
         </section>
     `;
 }
@@ -611,20 +850,20 @@ function renderRecycleWork() {
         </section>
         <div class="grid cols-2">
             <section class="panel">
-                <div class="panel-head"><h2>回收单</h2><span class="tag green">可编辑单据备注</span></div>
-                <div class="panel-body">${table(data.orders || [], [
+                <div class="panel-head"><h2>回收单</h2><div class="panel-actions">${filterInput("recycle-orders", "筛选单号/科室/筐")}</div></div>
+                <div class="panel-body">${table(filterRows("recycle-orders", data.orders || [], ["order_no", "dept_name", "basket_code", "remark"]), [
                     ["order_no", "单号"],
                     ["dept_name", "科室"],
                     ["total_count", "数量"],
                     ["basket_code", "筐"],
                     ["recycle_time", "回收时间"],
                     ["remark", "备注"],
-                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="recycleOrders" data-id="${safe(v)}" data-field="remark" data-current="${safe(row.remark)}">编辑备注</button>`]
+                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="recycleOrders" data-id="${safe(v)}" data-row="${encodeRow(row)}">编辑单据</button>`]
                 ])}</div>
             </section>
             <section class="panel">
-                <div class="panel-head"><h2>回收明细</h2></div>
-                <div class="panel-body">${table(data.items || [], [
+                <div class="panel-head"><h2>回收明细</h2><div class="panel-actions">${filterInput("recycle-items", "筛选包名/批次")}</div></div>
+                <div class="panel-body">${table(filterRows("recycle-items", data.items || [], ["order_no", "package_name", "lot_no", "package_code"]), [
                     ["order_no", "单号"],
                     ["package_name", "包名称"],
                     ["tracking_mode", "追溯模式", v => trackingModeTag(v)],
@@ -634,8 +873,8 @@ function renderRecycleWork() {
             </section>
         </div>
         <section class="panel">
-            <div class="panel-head"><h2>待流转批次</h2></div>
-            <div class="panel-body">${table(data.lots || [], [
+            <div class="panel-head"><h2>待流转批次</h2><div class="panel-actions">${filterInput("recycle-lots", "筛选批次/包名/科室")}</div></div>
+            <div class="panel-body">${table(filterRows("recycle-lots", data.lots || [], ["lot_no", "package_name", "dept_name", "basket_code"]), [
                 ["lot_no", "批次号"],
                 ["package_name", "包名称"],
                 ["dept_name", "来源科室"],
@@ -662,8 +901,8 @@ function renderWashWork() {
         </section>
         <div class="grid cols-2">
             <section class="panel">
-                <div class="panel-head"><h2>清洗批次</h2></div>
-                <div class="panel-body">${table(data.lots || [], [
+                <div class="panel-head"><h2>清洗批次</h2><div class="panel-actions">${filterInput("wash-lots", "筛选批次/包名/科室")}</div></div>
+                <div class="panel-body">${table(filterRows("wash-lots", data.lots || [], ["lot_no", "package_name", "dept_name", "basket_code"]), [
                     ["lot_no", "批次号"],
                     ["package_name", "包名称"],
                     ["dept_name", "来源科室"],
@@ -672,15 +911,15 @@ function renderWashWork() {
                 ])}</div>
             </section>
             <section class="panel">
-                <div class="panel-head"><h2>清洗记录</h2></div>
-                <div class="panel-body">${table(data.records || [], [
+                <div class="panel-head"><h2>清洗记录</h2><div class="panel-actions">${filterInput("wash-records", "筛选批号/设备/程序")}</div></div>
+                <div class="panel-body">${table(filterRows("wash-records", data.records || [], ["batch_no", "equipment_name", "program_name", "package_list", "remark"]), [
                     ["batch_no", "清洗批号"],
                     ["equipment_name", "设备"],
                     ["program_name", "程序"],
                     ["package_list", "批次清单"],
                     ["result", "结果", v => v === null || v === undefined ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
                     ["remark", "备注"],
-                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="washRecords" data-id="${safe(v)}" data-field="remark" data-current="${safe(row.remark)}">编辑备注</button>`]
+                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="washRecords" data-id="${safe(v)}" data-row="${encodeRow(row)}">编辑单据</button>`]
                 ])}</div>
             </section>
         </div>
@@ -701,8 +940,8 @@ function renderAssembleWork() {
         </section>
         <div class="grid cols-2">
             <section class="panel">
-                <div class="panel-head"><h2>待配包/已配包批次</h2></div>
-                <div class="panel-body">${table(data.lots || [], [
+                <div class="panel-head"><h2>待配包/已配包批次</h2><div class="panel-actions">${filterInput("assemble-lots", "筛选批次/包名/科室")}</div></div>
+                <div class="panel-body">${table(filterRows("assemble-lots", data.lots || [], ["lot_no", "package_name", "dept_name"]), [
                     ["lot_no", "批次号"],
                     ["package_name", "包名称"],
                     ["dept_name", "来源科室"],
@@ -711,8 +950,8 @@ function renderAssembleWork() {
                 ])}</div>
             </section>
             <section class="panel">
-                <div class="panel-head"><h2>配包留痕</h2></div>
-                <div class="panel-body">${table(data.events || [], [
+                <div class="panel-head"><h2>配包留痕</h2><div class="panel-actions">${filterInput("assemble-events", "筛选批次/人员/设备")}</div></div>
+                <div class="panel-body">${table(filterRows("assemble-events", data.events || [], ["lot_no", "event_type", "operator_name", "device_code"]), [
                     ["lot_no", "批次号"],
                     ["event_type", "事件"],
                     ["operator_name", "配包人"],
@@ -747,8 +986,8 @@ function renderPrint() {
                 ])}</div>
             </section>
             <section class="panel">
-                <div class="panel-head"><h2>最近标签</h2></div>
-                <div class="panel-body">${table(data.labels || [], [
+                <div class="panel-head"><h2>最近标签</h2><div class="panel-actions">${filterInput("pack-labels", "筛选标签/包名/人员")}</div></div>
+                <div class="panel-body">${table(filterRows("pack-labels", data.labels || [], ["label_no", "package_name", "assembler_name", "packer_name"]), [
                     ["label_no", "标签号"],
                     ["package_name", "包名"],
                     ["assembler_name", "配包人"],
@@ -759,8 +998,8 @@ function renderPrint() {
             </section>
         </div>
         <section class="panel">
-            <div class="panel-head"><h2>待打包批次</h2><span class="tag amber">仅展示，不执行打印</span></div>
-            <div class="panel-body">${table(data.lots || [], [
+            <div class="panel-head"><h2>待打包批次</h2><div class="panel-actions">${filterInput("pack-lots", "筛选批次/包名")}<span class="tag amber">仅展示</span></div></div>
+            <div class="panel-body">${table(filterRows("pack-lots", data.lots || [], ["lot_no", "package_name", "current_status"]), [
                 ["lot_no", "批次号"],
                 ["package_name", "包名称"],
                 ["remaining_qty", "未打印数量"],
@@ -784,8 +1023,8 @@ function renderSterilizeWork() {
         </section>
         <div class="grid cols-2">
             <section class="panel">
-                <div class="panel-head"><h2>灭菌标签</h2></div>
-                <div class="panel-body">${table(data.labels || [], [
+                <div class="panel-head"><h2>灭菌标签</h2><div class="panel-actions">${filterInput("sterilize-labels", "筛选标签/包名/批次")}</div></div>
+                <div class="panel-body">${table(filterRows("sterilize-labels", data.labels || [], ["label_no", "package_name", "lot_no", "status"]), [
                     ["label_no", "标签号"],
                     ["package_name", "包名"],
                     ["lot_no", "来源批次"],
@@ -793,8 +1032,8 @@ function renderSterilizeWork() {
                 ])}</div>
             </section>
             <section class="panel">
-                <div class="panel-head"><h2>灭菌记录</h2></div>
-                <div class="panel-body">${table(data.records || [], [
+                <div class="panel-head"><h2>灭菌记录</h2><div class="panel-actions">${filterInput("sterilize-records", "筛选批次/设备/程序")}</div></div>
+                <div class="panel-body">${table(filterRows("sterilize-records", data.records || [], ["batch_no", "equipment_name", "program_name", "package_list", "remark"]), [
                     ["batch_no", "灭菌批次"],
                     ["equipment_name", "设备"],
                     ["program_name", "程序"],
@@ -803,7 +1042,7 @@ function renderSterilizeWork() {
                     ["bio_test_status", "生物结果", v => Number(v) === 0 ? tag("待录入", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
                     ["result", "结果", v => v === null || v === undefined || Number(v) === 0 ? tag("进行中", "amber") : Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
                     ["remark", "备注"],
-                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="sterilizationRecords" data-id="${safe(v)}" data-field="remark" data-current="${safe(row.remark)}">编辑备注</button>`]
+                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="sterilizationRecords" data-id="${safe(v)}" data-row="${encodeRow(row)}">编辑单据</button>`]
                 ])}</div>
             </section>
         </div>
@@ -824,8 +1063,8 @@ function renderBioWork() {
         </section>
         <div class="grid cols-2">
             <section class="panel">
-                <div class="panel-head"><h2>待监测标签</h2></div>
-                <div class="panel-body">${table(data.labels || [], [
+                <div class="panel-head"><h2>待监测标签</h2><div class="panel-actions">${filterInput("bio-labels", "筛选标签/包名/批次")}</div></div>
+                <div class="panel-body">${table(filterRows("bio-labels", data.labels || [], ["label_no", "package_name", "lot_no", "status"]), [
                     ["label_no", "标签号"],
                     ["package_name", "包名"],
                     ["lot_no", "来源批次"],
@@ -833,8 +1072,8 @@ function renderBioWork() {
                 ])}</div>
             </section>
             <section class="panel">
-                <div class="panel-head"><h2>灭菌批次</h2></div>
-                <div class="panel-body">${table(data.records || [], [
+                <div class="panel-head"><h2>灭菌批次</h2><div class="panel-actions">${filterInput("bio-records", "筛选批次/设备/备注")}</div></div>
+                <div class="panel-body">${table(filterRows("bio-records", data.records || [], ["batch_no", "equipment_name", "package_list", "remark"]), [
                     ["batch_no", "灭菌批次"],
                     ["equipment_name", "设备"],
                     ["package_list", "标签清单"],
@@ -844,8 +1083,8 @@ function renderBioWork() {
             </section>
         </div>
         <section class="panel">
-            <div class="panel-head"><h2>监测流水</h2></div>
-            <div class="panel-body">${table(data.tests || [], [
+            <div class="panel-head"><h2>监测流水</h2><div class="panel-actions">${filterInput("bio-tests", "筛选批次/指示剂/人员")}</div></div>
+            <div class="panel-body">${table(filterRows("bio-tests", data.tests || [], ["sterilization_batch_no", "indicator_batch", "operator_name"]), [
                 ["sterilization_batch_no", "灭菌批次"],
                 ["indicator_batch", "指示剂批号"],
                 ["result", "结果", v => Number(v) === 1 ? tag("合格", "green") : tag("不合格", "red")],
@@ -870,8 +1109,8 @@ function renderDistributeWork() {
         </section>
         <div class="grid cols-2">
             <section class="panel">
-                <div class="panel-head"><h2>发放标签</h2></div>
-                <div class="panel-body">${table(data.labels || [], [
+                <div class="panel-head"><h2>发放标签</h2><div class="panel-actions">${filterInput("distribute-labels", "筛选标签/包名/批次")}</div></div>
+                <div class="panel-body">${table(filterRows("distribute-labels", data.labels || [], ["label_no", "package_name", "lot_no", "status"]), [
                     ["label_no", "标签号"],
                     ["package_name", "包名"],
                     ["lot_no", "来源批次"],
@@ -880,13 +1119,14 @@ function renderDistributeWork() {
                 ])}</div>
             </section>
             <section class="panel">
-                <div class="panel-head"><h2>发放单</h2></div>
-                <div class="panel-body">${table(data.orders || [], [
+                <div class="panel-head"><h2>发放单</h2><div class="panel-actions">${filterInput("distribute-orders", "筛选单号/科室/人员")}</div></div>
+                <div class="panel-body">${table(filterRows("distribute-orders", data.orders || [], ["order_no", "dept_name", "operator_name", "package_list"]), [
                     ["order_no", "发放单"],
                     ["dept_name", "科室"],
                     ["package_list", "标签清单"],
                     ["operator_name", "发放人"],
-                    ["distribute_time", "时间"]
+                    ["distribute_time", "时间"],
+                    ["id", "操作", (v, row) => `<button class="ghost edit-document" data-type="distributeOrders" data-id="${safe(v)}" data-row="${encodeRow(row)}">编辑单据</button>`]
                 ])}</div>
             </section>
         </div>
@@ -964,14 +1204,140 @@ function bindActions() {
     const traceLotBtn = document.getElementById("traceLotBtn");
     if (traceLotBtn) traceLotBtn.addEventListener("click", traceLotQuery);
     document.querySelectorAll(".edit-document").forEach(btn => btn.addEventListener("click", editDocumentField));
-    const addPackagingBtn = document.getElementById("addPackagingBtn");
-    if (addPackagingBtn) addPackagingBtn.addEventListener("click", addPackaging);
-    const addBasketBtn = document.getElementById("addBasketBtn");
-    if (addBasketBtn) addBasketBtn.addEventListener("click", addBasket);
-    const addClinicalPackageBtn = document.getElementById("addClinicalPackageBtn");
-    if (addClinicalPackageBtn) addClinicalPackageBtn.addEventListener("click", addClinicalPackage);
+    document.querySelectorAll(".data-filter").forEach(input => input.addEventListener("input", handleFilterInput));
+    document.querySelectorAll(".crud-add").forEach(btn => btn.addEventListener("click", () => openCrudModal(btn.dataset.entity)));
+    document.querySelectorAll(".crud-edit").forEach(btn => btn.addEventListener("click", () => openCrudModal(btn.dataset.entity, decodeRow(btn.dataset.row))));
+    document.querySelectorAll(".crud-delete").forEach(btn => btn.addEventListener("click", () => deleteCrudRow(btn.dataset.entity, btn.dataset.id)));
+    document.querySelectorAll(".save-role-permissions").forEach(btn => btn.addEventListener("click", () => saveRolePermissions(btn.dataset.roleId)));
     const addTemplateBtn = document.getElementById("addTemplateBtn");
     if (addTemplateBtn) addTemplateBtn.addEventListener("click", addTemplate);
+}
+
+function handleFilterInput(event) {
+    const input = event.currentTarget;
+    state.filters[input.dataset.filter] = input.value;
+    clearTimeout(handleFilterInput.timer);
+    handleFilterInput.timer = setTimeout(render, 180);
+}
+
+function openCrudModal(entityKey, row = null) {
+    const config = adminEntityConfigs[entityKey];
+    const modal = ensureModal();
+    modal.innerHTML = `
+        <div class="modal-card">
+            <div class="modal-head">
+                <h2>${row ? "编辑" : "新增"}${safe(config.title)}</h2>
+                <button class="ghost modal-close">关闭</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    ${config.fields.map(field => renderField(field, row)).join("")}
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="ghost modal-close">取消</button>
+                <button class="primary crud-save">保存</button>
+            </div>
+        </div>
+    `;
+    modal.classList.remove("hidden");
+    modal.querySelectorAll(".modal-close").forEach(btn => btn.addEventListener("click", closeModal));
+    modal.querySelector(".crud-save").addEventListener("click", () => saveCrudRow(entityKey, row && row.id));
+}
+
+function renderField(field, row) {
+    const [name, label, type, fallback, options] = field;
+    const defaultValue = typeof fallback === "function" ? fallback() : fallback;
+    const value = row && row[name] !== undefined && row[name] !== null ? row[name] : defaultValue;
+    if (type === "select") {
+        const rows = typeof options === "function" ? options() : options;
+        return `
+            <label>${safe(label)}
+                <select data-field="${safe(name)}">
+                    ${(rows || []).map(item => `<option value="${safe(item[0])}" ${String(value) === String(item[0]) ? "selected" : ""}>${safe(item[1])}</option>`).join("")}
+                </select>
+            </label>
+        `;
+    }
+    if (type === "textarea") {
+        return `<label class="wide-field">${safe(label)}<textarea data-field="${safe(name)}">${safe(formatFieldValue(value))}</textarea></label>`;
+    }
+    return `<label>${safe(label)}<input data-field="${safe(name)}" type="${safe(type)}" value="${safe(formatFieldValue(value))}"></label>`;
+}
+
+function formatFieldValue(value) {
+    if (Array.isArray(value) || (value && typeof value === "object")) {
+        return JSON.stringify(value);
+    }
+    return value ?? "";
+}
+
+async function saveCrudRow(entityKey, rowId) {
+    const config = adminEntityConfigs[entityKey];
+    const modal = ensureModal();
+    const body = {};
+    config.fields.forEach(field => {
+        const [name, , type] = field;
+        const element = modal.querySelector(`[data-field="${name}"]`);
+        if (!element) return;
+        body[name] = normalizeFieldValue(type, element.value);
+    });
+    await api(rowId ? `admin/${config.entity}/${rowId}` : `admin/${config.entity}`, {
+        method: rowId ? "PUT" : "POST",
+        body
+    });
+    closeModal();
+    showNotice(`${config.title}已保存`);
+    state.basic = await api("basic");
+    render();
+}
+
+function normalizeFieldValue(type, value) {
+    if (type === "number") return Number(value || 0);
+    if (type === "textarea") {
+        const text = value.trim();
+        if ((text.startsWith("[") && text.endsWith("]")) || (text.startsWith("{") && text.endsWith("}"))) {
+            try {
+                return JSON.parse(text);
+            } catch {
+                return text;
+            }
+        }
+    }
+    return value;
+}
+
+async function deleteCrudRow(entityKey, rowId) {
+    const config = adminEntityConfigs[entityKey];
+    if (!rowId || !confirm(`确认停用/删除该${config.title}？`)) return;
+    await api(`admin/${config.entity}/${rowId}`, { method: "DELETE" });
+    showNotice(`${config.title}已停用`);
+    state.basic = await api("basic");
+    render();
+}
+
+async function saveRolePermissions(roleId) {
+    const permissionIds = Array.from(document.querySelectorAll(`.role-permission-check[data-role-id="${roleId}"]:checked`))
+        .map(input => input.value);
+    await api(`roles/${roleId}/permissions`, { method: "PUT", body: { permissionIds } });
+    showNotice("角色权限已保存");
+    state.basic = await api("basic");
+    render();
+}
+
+function ensureModal() {
+    let modal = document.getElementById("modalRoot");
+    if (!modal) {
+        modal = document.createElement("section");
+        modal.id = "modalRoot";
+        modal.className = "modal hidden";
+        document.body.appendChild(modal);
+    }
+    return modal;
+}
+
+function closeModal() {
+    ensureModal().classList.add("hidden");
 }
 
 async function traceQuery() {
@@ -1027,17 +1393,52 @@ async function traceLotQuery() {
     `;
 }
 
-// 编辑已产生单据的备注等后台字段，不触发任何现场业务流转。
-async function editDocumentField(event) {
+// 编辑已产生单据的管理字段，不触发任何现场业务流转。
+function editDocumentField(event) {
     const btn = event.currentTarget;
-    const field = btn.dataset.field;
-    const current = btn.dataset.current || "";
-    const nextValue = prompt("请输入新的单据备注", current);
-    if (nextValue === null) return;
-    await api(`documents/${btn.dataset.type}/${btn.dataset.id}`, {
-        method: "PUT",
-        body: { [field]: nextValue }
+    openDocumentModal(btn.dataset.type, btn.dataset.id, decodeRow(btn.dataset.row));
+}
+
+function openDocumentModal(docType, rowId, row) {
+    const config = documentEditConfigs[docType];
+    const modal = ensureModal();
+    modal.innerHTML = `
+        <div class="modal-card">
+            <div class="modal-head">
+                <h2>编辑${safe(config.title)}</h2>
+                <button class="ghost modal-close">关闭</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    ${config.fields.map(field => renderField(field, row)).join("")}
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="ghost modal-close">取消</button>
+                <button class="primary document-save">保存更正</button>
+            </div>
+        </div>
+    `;
+    modal.classList.remove("hidden");
+    modal.querySelectorAll(".modal-close").forEach(btn => btn.addEventListener("click", closeModal));
+    modal.querySelector(".document-save").addEventListener("click", () => saveDocumentRow(docType, rowId));
+}
+
+async function saveDocumentRow(docType, rowId) {
+    const config = documentEditConfigs[docType];
+    const modal = ensureModal();
+    const body = {};
+    config.fields.forEach(field => {
+        const [name, , type] = field;
+        const element = modal.querySelector(`[data-field="${name}"]`);
+        if (!element) return;
+        body[name] = normalizeFieldValue(type, element.value);
     });
+    await api(`documents/${docType}/${rowId}`, {
+        method: "PUT",
+        body
+    });
+    closeModal();
     showNotice("单据已更新");
     await refresh();
 }
@@ -1255,6 +1656,13 @@ function equipmentStatus(value) {
         : Number(value) === 2 ? tag("运行中", "amber")
         : Number(value) === 3 ? tag("故障", "red")
         : tag("维护/停用", "red");
+}
+
+function equipmentTypeText(value) {
+    return Number(value) === 1 ? "清洗设备"
+        : Number(value) === 2 ? "高温灭菌"
+        : Number(value) === 3 ? "低温灭菌"
+        : value || "";
 }
 
 function tag(text, color = "") {

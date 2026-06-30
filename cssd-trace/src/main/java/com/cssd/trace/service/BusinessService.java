@@ -118,6 +118,22 @@ public class BusinessService {
         return after;
     }
 
+    // 保存角色权限：先清空旧授权再写入新授权，并把授权变化写入审计日志。
+    @Transactional
+    public Map<String, Object> updateRolePermissions(String roleId, Map<String, Object> body) {
+        Map<String, Object> before = one("SELECT * FROM cssd_role WHERE id=?", roleId);
+        List<String> permissionIds = stringList(body.get("permissionIds"));
+        jdbc.update("DELETE FROM cssd_role_permission WHERE role_id=?", roleId);
+        for (String permissionId : permissionIds) {
+            jdbc.update("INSERT INTO cssd_role_permission(id, role_id, permission_id) VALUES(?,?,?)",
+                    id(), roleId, permissionId);
+        }
+        Map<String, Object> after = new LinkedHashMap<>(before);
+        after.put("permissionIds", permissionIds);
+        audit("cssd_role_permission", roleId, "UPDATE_ROLE_PERMISSION", before, after);
+        return Map.of("roleId", roleId, "permissionIds", permissionIds);
+    }
+
     // 后台工作区查询入口，按区域返回真实单据、明细和关联批次。
     public Map<String, Object> workArea(String area) {
         Map<String, Object> data = new LinkedHashMap<>();
@@ -641,6 +657,10 @@ public class BusinessService {
                     List.of("dept_code", "dept_name", "dept_type", "barcode", "status"), "dept_code");
             case "users" -> new EntityMeta("cssd_user",
                     List.of("work_no", "user_name", "password_hash", "dept_id", "role_code", "user_type", "status", "login_method"), "work_no");
+            case "roles" -> new EntityMeta("cssd_role",
+                    List.of("role_code", "role_name", "remark", "status"), "role_code");
+            case "permissions" -> new EntityMeta("cssd_permission",
+                    List.of("permission_code", "permission_name", "module_code", "permission_type", "sort_no", "status"), "sort_no, permission_code");
             case "instruments" -> new EntityMeta("cssd_instrument",
                     List.of("instrument_code", "instrument_name", "spec", "category", "unit"), "instrument_code");
             case "packaging" -> new EntityMeta("cssd_packaging",
@@ -661,9 +681,10 @@ public class BusinessService {
     // 单据编辑白名单：Web 端只能改备注等管理字段，不能改变回收、清洗、灭菌、发放的流程动作。
     private DocumentMeta documentMeta(String docType) {
         return switch (docType) {
-            case "recycleOrders" -> new DocumentMeta("cssd_recycle_order", List.of("remark", "abnormal_record", "video_url"));
-            case "washRecords" -> new DocumentMeta("cssd_wash_record", List.of("remark"));
-            case "sterilizationRecords" -> new DocumentMeta("cssd_sterilization_record", List.of("remark"));
+            case "recycleOrders" -> new DocumentMeta("cssd_recycle_order",
+                    List.of("source_user", "total_count", "basket_code", "abnormal_record", "remark", "video_url"));
+            case "washRecords" -> new DocumentMeta("cssd_wash_record", List.of("program_name", "remark"));
+            case "sterilizationRecords" -> new DocumentMeta("cssd_sterilization_record", List.of("program_name", "remark"));
             case "distributeOrders" -> new DocumentMeta("cssd_distribute_order", List.of("status"));
             default -> throw new IllegalArgumentException("不支持的单据类型：" + docType);
         };
@@ -1027,6 +1048,25 @@ public class BusinessService {
         } catch (Exception ex) {
             throw new IllegalArgumentException("JSON数组解析失败：" + ex.getMessage());
         }
+    }
+
+    // 将前端传入的数组或逗号分隔文本转成字符串列表，角色授权和标签号解析都可复用。
+    private List<String> stringList(Object value) {
+        List<String> rows = new ArrayList<>();
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                if (item != null && !item.toString().isBlank()) {
+                    rows.add(item.toString().trim());
+                }
+            }
+        } else if (value != null) {
+            for (String item : value.toString().split(",")) {
+                if (!item.isBlank()) {
+                    rows.add(item.trim());
+                }
+            }
+        }
+        return rows;
     }
 
     // 查询单行数据，统一把未找到转换成业务提示。

@@ -90,6 +90,12 @@ public class ApiController {
         return ApiResponse.ok(traceService.updateConfig(key, body));
     }
 
+    // 角色权限保存：系统管理端为角色勾选可访问模块和操作权限。
+    @PutMapping("/roles/{roleId}/permissions")
+    public ApiResponse<Map<String, Object>> updateRolePermissions(@PathVariable String roleId, @RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(businessService.updateRolePermissions(roleId, body));
+    }
+
     // 后台单据编辑：只允许修改已经产生的单据字段，不推动现场业务流转。
     @PutMapping("/documents/{docType}/{id}")
     public ApiResponse<Map<String, Object>> updateDocument(@PathVariable String docType, @PathVariable String id,

@@ -6,6 +6,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+
 @Component
 public class DatabaseInitializer implements ApplicationRunner {
 
@@ -52,6 +54,8 @@ public class DatabaseInitializer implements ApplicationRunner {
         if (!columnExists("cssd_package_instance", "source_lot_id")) {
             jdbc.execute("ALTER TABLE cssd_package_instance ADD COLUMN source_lot_id varchar(32) AFTER current_batch_no");
         }
+        // 审计动作名称会记录 UPDATE_ROLE_PERMISSION 等较长动作，旧库需要扩容。
+        jdbc.execute("ALTER TABLE cssd_data_audit_log MODIFY COLUMN action varchar(60) NOT NULL");
     }
 
     private boolean columnExists(String tableName, String columnName) {
@@ -90,6 +94,39 @@ public class DatabaseInitializer implements ApplicationRunner {
               status tinyint NOT NULL DEFAULT 1,
               login_method varchar(40) NOT NULL DEFAULT 'card',
               created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS cssd_role (
+              id varchar(32) PRIMARY KEY,
+              role_code varchar(40) NOT NULL UNIQUE,
+              role_name varchar(60) NOT NULL,
+              remark varchar(255),
+              status tinyint NOT NULL DEFAULT 1,
+              created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS cssd_permission (
+              id varchar(32) PRIMARY KEY,
+              permission_code varchar(80) NOT NULL UNIQUE,
+              permission_name varchar(80) NOT NULL,
+              module_code varchar(40) NOT NULL,
+              permission_type varchar(30) NOT NULL DEFAULT 'MENU',
+              sort_no int NOT NULL DEFAULT 0,
+              status tinyint NOT NULL DEFAULT 1
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS cssd_role_permission (
+              id varchar(32) PRIMARY KEY,
+              role_id varchar(32) NOT NULL,
+              permission_id varchar(32) NOT NULL,
+              UNIQUE KEY uk_role_perm(role_id, permission_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """);
 
@@ -241,7 +278,7 @@ public class DatabaseInitializer implements ApplicationRunner {
               id varchar(32) PRIMARY KEY,
               table_name varchar(80) NOT NULL,
               row_id varchar(32) NOT NULL,
-              action varchar(20) NOT NULL,
+              action varchar(60) NOT NULL,
               operator_id varchar(32),
               before_snapshot json,
               after_snapshot json,
@@ -584,6 +621,34 @@ public class DatabaseInitializer implements ApplicationRunner {
     }
 
     private void seedMissingReferenceData() {
+        // 初始化角色和权限，系统管理页可在此基础上维护角色授权。
+        if (isEmpty("cssd_role")) {
+            role("role-admin", "ADMIN", "系统管理员", "拥有全部后台和业务终端权限");
+            role("role-head", "HEAD_NURSE", "护士长", "审核、质控和报表权限");
+            role("role-operator", "OPERATOR", "操作员", "触摸端业务操作权限");
+            role("role-delivery", "DELIVERY", "下送人员", "发放和下送相关权限");
+        }
+        if (isEmpty("cssd_permission")) {
+            permission("perm-dashboard", "dashboard:view", "数据总览", "dashboard", 10);
+            permission("perm-trace", "trace:view", "追溯查询", "trace", 20);
+            permission("perm-doc-recycle", "documents:recycle", "回收单管理", "documents", 30);
+            permission("perm-doc-wash", "documents:wash", "清洗记录管理", "documents", 40);
+            permission("perm-doc-pack", "documents:pack", "配包打包记录", "documents", 50);
+            permission("perm-doc-sterilize", "documents:sterilize", "灭菌记录管理", "documents", 60);
+            permission("perm-doc-distribute", "documents:distribute", "发放单管理", "documents", 70);
+            permission("perm-basic", "basic:manage", "基础资料维护", "basic", 80);
+            permission("perm-system", "system:manage", "系统管理", "system", 90);
+            permission("perm-touch", "terminal:operate", "触摸端业务操作", "terminal", 100);
+            permission("perm-pda", "pda:sync", "PDA离线同步", "terminal", 110);
+        }
+        if (isEmpty("cssd_role_permission")) {
+            grantAll("role-admin");
+            grant("role-head", "perm-dashboard", "perm-trace", "perm-doc-recycle", "perm-doc-wash", "perm-doc-pack",
+                    "perm-doc-sterilize", "perm-doc-distribute", "perm-basic");
+            grant("role-operator", "perm-touch", "perm-trace");
+            grant("role-delivery", "perm-doc-distribute", "perm-touch", "perm-pda");
+        }
+
         // 初始化包材资料，标签失效日期统一依赖这里维护的有效期天数。
         if (isEmpty("cssd_packaging")) {
             jdbc.update("INSERT INTO cssd_packaging(id, packaging_code, packaging_name, validity_days) VALUES(?,?,?,?)",
@@ -639,5 +704,27 @@ public class DatabaseInitializer implements ApplicationRunner {
                   {"key":"labelNo","title":"追溯码","visible":true,"fontSize":9,"barcode":"QR"}
                 ]}
                 """, "user-admin", "user-admin");
+    }
+
+    private void role(String id, String code, String name, String remark) {
+        jdbc.update("INSERT INTO cssd_role(id, role_code, role_name, remark) VALUES(?,?,?,?)", id, code, name, remark);
+    }
+
+    private void permission(String id, String code, String name, String module, int sortNo) {
+        jdbc.update("INSERT INTO cssd_permission(id, permission_code, permission_name, module_code, sort_no) VALUES(?,?,?,?,?)",
+                id, code, name, module, sortNo);
+    }
+
+    private void grantAll(String roleId) {
+        for (Map<String, Object> permission : jdbc.queryForList("SELECT id FROM cssd_permission")) {
+            grant(roleId, permission.get("id").toString());
+        }
+    }
+
+    private void grant(String roleId, String... permissionIds) {
+        for (String permissionId : permissionIds) {
+            jdbc.update("INSERT IGNORE INTO cssd_role_permission(id, role_id, permission_id) VALUES(REPLACE(UUID(),'-',''),?,?)",
+                    roleId, permissionId);
+        }
     }
 }
